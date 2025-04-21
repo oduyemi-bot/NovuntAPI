@@ -39,13 +39,11 @@ const sendVerificationTOTP = (email, name) => __awaiter(void 0, void 0, void 0, 
         encoding: "base32",
         step: 300, // 5 minutes validity
     });
-    // Calculate expiration time
-    const expirationTime = Date.now() + 300 * 1000; // Token expires in 5 minutes
-    // Store the token and expiration in the TempUser database
+    const expirationTime = Date.now() + 300 * 1000; // Expires in 5 minutes
     const tempUser = yield tempUser_model_1.default.findOneAndUpdate({ email }, {
-        secret: secret.base32, // Save the secret too
-        verificationToken: token, // Save the generated token
-        tokenExpiration: expirationTime // Save the expiration time
+        secret: secret.base32,
+        verificationToken: token,
+        tokenExpiration: expirationTime
     }, { upsert: true, new: true } // Create the document if it doesn't exist, return the updated document
     );
     const mailOptions = {
@@ -61,7 +59,6 @@ const sendVerificationTOTP = (email, name) => __awaiter(void 0, void 0, void 0, 
     };
     yield transporter_1.transporter.sendMail(mailOptions);
     return {
-        token, // returning for debug purposes, remove in production
         secret: secret.base32,
     };
 });

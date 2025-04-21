@@ -36,8 +36,7 @@ const initiateRegistration = (req, res) => __awaiter(void 0, void 0, void 0, fun
         res.status(400).json({ message: "Both passwords must match!" });
         return;
     }
-    console.log("Request body:", req.body); // Log request body for debugging
-    console.log("Sending to:", email, "Name:", `${fname} ${lname}`); // Log email and name
+    console.log("Sending to:", email, "Name:", `${fname} ${lname}`);
     const { secret } = yield (0, sendMail_1.sendVerificationTOTP)(email, `${fname} ${lname}`);
     const tokenExpiration = Date.now() + 30 * 60 * 1000; // 30 minutes expiration
     const verificationToken = speakeasy_1.default.totp({ secret, encoding: 'base32' });
@@ -63,7 +62,6 @@ exports.initiateRegistration = initiateRegistration;
 const resendVerificationCode = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { email } = req.body;
-        // Ensure email is provided
         if (!email) {
             res.status(400).json({ message: "Email is required to resend verification code." });
             return;
@@ -85,9 +83,7 @@ const resendVerificationCode = (req, res) => __awaiter(void 0, void 0, void 0, f
         const { fname, lname } = tempUser;
         const { secret } = yield (0, sendMail_1.sendVerificationTOTP)(email, `${fname} ${lname}`);
         tempUser.secret = secret;
-        // Save the updated TempUser with the new secret
         yield tempUser.save();
-        // Respond with success message
         res.status(200).json({ message: "New verification code sent to your email." });
     }
     catch (error) {
@@ -151,19 +147,16 @@ const login = (req, res, next) => __awaiter(void 0, void 0, void 0, function* ()
             return;
         }
         let user = null;
-        // Find the user by email or username
         if (email) {
             user = yield user_model_1.default.findOne({ email }).select("+password");
         }
         else if (username) {
             user = yield user_model_1.default.findOne({ username }).select("+password");
         }
-        // If user not found
         if (!user) {
             res.status(401).json({ message: "User not registered. Please register first." });
             return;
         }
-        // Compare the provided password with the stored password
         const isMatch = yield bcryptjs_1.default.compare(password, user.password);
         if (!isMatch) {
             res.status(400).json({ message: "Invalid credentials" });
@@ -173,14 +166,13 @@ const login = (req, res, next) => __awaiter(void 0, void 0, void 0, function* ()
         if (user.twoFAEnabled) {
             res.status(200).json({
                 message: "Two-factor authentication required",
-                nextStep: "/verify-2fa", // Redirect to 2FA verification route
+                nextStep: "/verify-2fa",
             });
             return;
         }
-        // Generate a JWT token
+        // Generate JWT token
         const payload = { userID: user._id };
         const token = jsonwebtoken_1.default.sign(payload, process.env.JWT_SECRET, { expiresIn: "1h" });
-        // Prepare user session data
         const userSession = {
             userID: user._id,
             fname: user.fname,
@@ -194,9 +186,7 @@ const login = (req, res, next) => __awaiter(void 0, void 0, void 0, function* ()
             createdAt: user.createdAt,
             updatedAt: user.updatedAt,
         };
-        // Save the user session
         req.session.user = userSession;
-        // Send response with user data and JWT token
         res.status(200).json({
             message: "Login successful",
             userID: user._id,
