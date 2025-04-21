@@ -31,7 +31,6 @@ export const validateLogin = (req: Request, res: Response, next: NextFunction): 
 
 // Password validation regex
 const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
-
 export const validatePassword = (req: Request, res: Response, next: NextFunction): void => {
     const { password } = req.body;
     

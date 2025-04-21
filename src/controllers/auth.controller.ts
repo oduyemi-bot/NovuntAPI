@@ -4,10 +4,9 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import speakeasy from "speakeasy";
 import User, { IUser } from "../models/user.model";
-import TempUser, {ITempUser} from "../models/tempUser.model";
+import TempUser from "../models/tempUser.model";
 import { sendVerificationTOTP } from "../utils/sendMail";
 import dotenv from "dotenv";
-import { clearTempUserSession } from "../helpers/clearTempUserSession";
 
 
 dotenv.config();
@@ -26,183 +25,141 @@ export interface UserSession {
     updatedAt?: Date;
 }
 
-interface TempUserSession {
-    fname: string;
-    lname: string;
-    email: string;
-    username: string;
-    secret: string;
-    createdAt: Date;
-  }
-
 declare module "express-session" {
     interface SessionData {
         user?: UserSession;
-        tempUser?: TempUserSession;
         lastTOTPResend?: number;
     }
 }
 
 export {};
-
-
-export const resendVerificationCode = async (req: Request, res: Response): Promise<void> => {
-    const tempUser = req.session.tempUser;
-    if (!tempUser) {
-      res.status(400).json({ message: "No temp session found. Please restart registration." });
-      return;
-    }
   
-    const ensuredTempUser = tempUser as TempUserSession;
-    const { email, fname, lname } = ensuredTempUser;
   
-    // Rate-limit check
-    const lastResend = (req.session as any).lastTOTPResend as number | undefined;
-    if (lastResend && Date.now() - lastResend < 60 * 1000) {
-      res.status(429).json({ message: "Please wait a minute before trying again." });
-      return;
-    }
-  
-    (req.session as any).lastTOTPResend = Date.now();
-  
-    // Generate and update new secret
-    const { secret } = await sendVerificationTOTP(email, `${fname} ${lname}`);
-    await TempUser.findOneAndUpdate({ email }, { secret });
-  
-    // Re-assign secret back into the session safely
-    ensuredTempUser.secret = secret;
-    req.session.tempUser = ensuredTempUser;
-  
-    res.status(200).json({ message: "New verification code sent to your email." });
-  };
-  
-
-
 export const initiateRegistration = async (req: Request, res: Response): Promise<void> => {
-    const { fname, lname, email, username, password, confirmPassword  } = req.body;
+    const { fname, lname, email, username, password, confirmPassword } = req.body;
+  
     if (!fname || !lname || !email || !username || !password || !confirmPassword) {
       res.status(400).json({ message: "Missing required fields" });
       return;
     }
   
-    const existingUser = await User.findOne({ email, username });   
+    const existingUser = await User.findOne({ email, username });
     if (existingUser) {
       res.status(400).json({ message: "Email or username already exists" });
       return;
     }
-
+  
     if (password !== confirmPassword) {
-        res.status(400).json({ message: "Both passwords must match!" });
-        return;
+      res.status(400).json({ message: "Both passwords must match!" });
+      return;
     }
-
+  
+    console.log("Sending to:", email, "Name:", `${fname} ${lname}`);  
     const { secret } = await sendVerificationTOTP(email, `${fname} ${lname}`);
-  
-    await TempUser.findOneAndDelete({ email });
-  
-    const temp = new TempUser({ fname, lname, email, username, secret });
-    await temp.save();
-  
-    req.session.tempUser = {
-      fname,
-      lname,
-      email,
-      username,
-      secret,
-      createdAt: new Date(),
-    };
-  
-    res.status(200).json({ 
-        message: "Verification code sent to email",
-        nextStep: "/verify-email" 
-    });
-  };
-  
-  
-  export const completeRegistration = async (req: Request, res: Response): Promise<void> => {
-    const { password, confirmPassword, token } = req.body;
-  
-    const tempUserSession = req.session.tempUser;
-  
-    if (!tempUserSession) {
-      res.status(400).json({ message: "No temp user session found. Please restart registration." });
-      return;
-    }
-  
-    const { fname, lname, email, username, secret } = tempUserSession;
-  
-    // 1. Password match check
-    if (!password || !confirmPassword) {
-      res.status(400).json({ message: "Password and confirmation are required." });
-      return;
-    }
-  
-    if (password !== confirmPassword) {
-      res.status(400).json({ message: "Passwords do not match." });
-      return;
-    }
-  
-    // 2. Verify TOTP
-    const isValid = speakeasy.totp.verify({
-      secret,
-      encoding: "base32",
-      token,
-      window: 1,
-    });
-  
-    if (!isValid) {
-        res.status(400).json({ message: "Invalid or expired verification code.", errorCode: "INVALID_TOTP" });
-        return;
-      }      
-  
-    // 3. Final duplication check (email or username was taken mid-process)
-    const existingUser = await User.findOne({
-      $or: [{ email }, { username }],
-    });
-  
-    if (existingUser) {
-      res.status(409).json({ message: "Email or username is already in use." });
-      return;
-    }
-  
-    // 4. Hash password
+    const tokenExpiration = Date.now() + 30 * 60 * 1000; // 30 minutes expiration
+    const verificationToken = speakeasy.totp({ secret, encoding: 'base32' });
     const hashedPassword = await bcrypt.hash(password, 10);
-  
-    // 5. Create and save permanent user
-    const newUser = new User({
+    await TempUser.findOneAndDelete({ email });
+    const temp = new TempUser({
       fname,
       lname,
       email,
       username,
       password: hashedPassword,
+      secret,
+      tokenExpiration, 
+      verificationToken,  
+    });
+    
+    await temp.save();
+  
+    res.status(200).json({
+      message: "Verification code sent to email",
+      nextStep: "/verify-email",
+    });
+};
+  
+  
+export const resendVerificationCode = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      res.status(400).json({ message: "Email is required to resend verification code." });
+      return;
+    }
+
+    // Rate-limit check: Ensure user waits a minute before resending the verification code
+    const lastResendTimestamp = (req.session as any).lastTOTPResend as number | undefined;
+    if (lastResendTimestamp && Date.now() - lastResendTimestamp < 60 * 1000) {
+      res.status(429).json({ message: "Please wait a minute before trying again." });
+      return;
+    }
+
+    // Update rate limit timestamp
+    (req.session as any).lastTOTPResend = Date.now();
+    const tempUser = await TempUser.findOne({ email });
+    if (!tempUser) {
+      res.status(400).json({ message: "No registration session found for the provided email." });
+      return;
+    }
+
+    // Generate a new TOTP secret and update the TempUser record
+    const { fname, lname } = tempUser;
+    const { secret } = await sendVerificationTOTP(email, `${fname} ${lname}`);
+    tempUser.secret = secret;
+    await tempUser.save();
+    res.status(200).json({ message: "New verification code sent to your email." });
+  } catch (error) {
+    console.error("Error during resend verification code:", error);
+    res.status(500).json({ message: "Internal Server Error. Please try again later." });
+  }
+};
+
+  
+
+  export const completeRegistration = async (req: Request, res: Response): Promise<void> => {
+    const { email, verificationCode } = req.body;
+    const tempUser = await TempUser.findOne({ email });
+    if (!tempUser) {
+      res.status(400).json({ message: "Invalid or expired registration session." });
+      return;
+    }
+  
+    console.log("TempUser found:", tempUser);
+    const currentTime = Date.now();  
+    if (currentTime > tempUser.tokenExpiration) {
+      res.status(400).json({ message: "Verification code has expired." });
+      return;
+    }
+  
+    // Validate the verification code using TOTP
+    const isValid = speakeasy.totp.verify({
+      secret: tempUser.secret,
+      encoding: "base32",
+      token: verificationCode,
+      step: 300,  // 5 minutes validity window
+      window: 1,  // Allow 1 step window for previous token
+    });
+  
+    if (!isValid) {
+      res.status(400).json({ message: "Invalid verification code." });
+      return;
+    }
+
+    const { fname, lname, username, password } = tempUser;
+    const newUser = new User({
+      fname,
+      lname,
+      email,
+      username,
+      password,
       role: "user",
       twoFAEnabled: false,
-      twoFASecret: "", // will be set later if user opts in for 2FA
+      twoFASecret: "",
     });
   
     await newUser.save();
-  
-    // 6. Clean up temp user from DB and session
     await TempUser.findOneAndDelete({ email });
-    clearTempUserSession(req);
-    delete req.session.tempUser;
-  
-    // 7. Store in session
-    req.session.user = {
-      userID: newUser._id,
-      fname: newUser.fname,
-      lname: newUser.lname,
-      email: newUser.email,
-      username: newUser.username,
-      walletAddress: newUser.walletAddress,
-      role: newUser.role,
-      twoFAEnabled: newUser.twoFAEnabled,
-      twoFASecret: newUser.twoFASecret,
-      createdAt: newUser.createdAt,
-      updatedAt: newUser.updatedAt,
-    };
-  
-    // 8. Return response
     const jwtToken = jwt.sign(
       { userID: newUser._id, email: newUser.email },
       process.env.JWT_SECRET!,
@@ -210,30 +167,22 @@ export const initiateRegistration = async (req: Request, res: Response): Promise
     );
   
     res.status(201).json({
-      message: "Registration completed successfully.",
+      message: "Registration complete!",
       token: jwtToken,
-      user: {
-        fname: newUser.fname,
-        lname: newUser.lname,
-        email: newUser.email,
-        username: newUser.username,
-      },
-      nextStep: "/dashboard", // or whatever next route
+      user: { fname, lname, email, username },
+      nextStep: "/login",
     });
-};
+  };
   
-
-export const login = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  
+  export const login = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-        const { email, username, password } = req.body;
-
-        // Ensure either email or username and password are provided
+        const {email, username, password} = req.body;
         if ((!email && !username) || !password) {
-            res.status(400).json({ message: "Email/Username and password are required" });
+            res.status(400).json({ message: "Either email or username and password are required" });
             return;
         }
 
-        // Find the user either by email or username
         let user: IUser | null = null;
         if (email) {
             user = await User.findOne({ email }).select("+password");
@@ -241,25 +190,29 @@ export const login = async (req: Request, res: Response, next: NextFunction): Pr
             user = await User.findOne({ username }).select("+password");
         }
 
-        // Check if the user exists
         if (!user) {
             res.status(401).json({ message: "User not registered. Please register first." });
             return;
         }
 
-        // Compare the provided password with the hashed password
         const isMatch = await bcrypt.compare(password, user.password);
-
         if (!isMatch) {
             res.status(400).json({ message: "Invalid credentials" });
             return;
         }
 
-        // Create JWT token payload
+        // If 2FA is enabled, return a response asking for 2FA verification
+        if (user.twoFAEnabled) {
+            res.status(200).json({
+                message: "Two-factor authentication required",
+                nextStep: "/verify-2fa",  
+            });
+            return;
+        }
+
+        // Generate JWT token
         const payload = { userID: user._id };
         const token = jwt.sign(payload, process.env.JWT_SECRET!, { expiresIn: "1h" });
-
-        // Create the user session
         const userSession = {
             userID: user._id,
             fname: user.fname,
@@ -274,18 +227,15 @@ export const login = async (req: Request, res: Response, next: NextFunction): Pr
             updatedAt: user.updatedAt,
         };
 
-        // Save the user session
         req.session.user = userSession;
-
-        // Send the response with the token and user data
         res.status(200).json({
-            message: "success",
+            message: "Login successful",
             userID: user._id,
             fname: user.fname,
             lname: user.lname,
             email: user.email,
             username: user.username,
-            nextStep: "/next-dashboard", // Adjust the next step route as needed
+            nextStep: "/next-dashboard", 
             token,
         });
     } catch (error) {
@@ -293,6 +243,7 @@ export const login = async (req: Request, res: Response, next: NextFunction): Pr
         res.status(500).json({ message: "Error logging in user" });
     }
 };
+
 
 
 export const logout = (req: Request, res: Response) => {

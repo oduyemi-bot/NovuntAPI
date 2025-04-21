@@ -39,7 +39,14 @@ const TempUserSchema = new mongoose_1.Schema({
     lname: { type: String, required: true },
     email: { type: String, required: true, unique: true },
     username: { type: String, required: true, unique: true },
+    password: { type: String, required: true },
     secret: { type: String, required: true },
-    createdAt: { type: Date, default: Date.now, expires: 600 }
+    verificationToken: { type: String, required: true },
+    tokenExpiration: { type: Number, required: true },
+    createdAt: {
+        type: Date,
+        default: Date.now,
+        expires: 1800, // TTL: 30 minutes (in seconds)
+    },
 });
 exports.default = mongoose_1.default.model("TempUser", TempUserSchema);

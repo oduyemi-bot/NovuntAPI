@@ -63,10 +63,6 @@ const userSchema = new Schema<IUser>(
       required: [true, "Password is required"],
       minlength: [8, "Password must be at least 8 characters long"],
       select: false,
-      validate: {
-        validator: (value: string) => passwordRegex.test(value),
-        message: "Password must contain uppercase, lowercase, number, and special character.",
-      },
     },
 
     walletAddress: { 
@@ -96,74 +92,50 @@ const userSchema = new Schema<IUser>(
   { timestamps: true }
 );
 
-userSchema.pre<IUser>("save", async function (next) {
-  if (this.isModified("password") || this.isNew) {
-    const salt = await bcrypt.genSalt(10);
-    this.password = await bcrypt.hash(this.password, salt);
-  }
-  next();
-});
-
-userSchema.methods.comparePassword = async function (candidatePassword: string): Promise<boolean> {
-  return bcrypt.compare(candidatePassword, this.password);
-};
-
 const User: Model<IUser> = mongoose.model<IUser>("User", userSchema);
-
 async function addSuperAdmins() {
-    const superAdminUsers = [
-      {
-        fname: "Yemi",
-        lname: "Cole",
-        email: "ykay@gmail.com",
-        username: "ykay",
-        phone: "+2348166442322",
-        password: process.env.YEMI,
-        role: "superAdmin",
-      },
-      {
-        fname: "Oreoluwa",
-        lname: "Smith",
-        email: "oreoluwasmith@gmail.com",
-        username: "ore_smith",
-        phone: "+2348133992314",
-        password: process.env.OREOLUWA,
-        role: "superAdmin",
-      },
-      {
-        fname: "Opeyemi",
-        lname: "Oduyemi",
-        email: "hello@yemi.dev",
-        username: "oduyemi",
-        phone: "+2348166336187",
-        password: process.env.OPEYEMI,
-        role: "superAdmin",
-      },
-    ];
-  
-    for (const user of superAdminUsers) {
-      try {
-        const exists = await User.findOne({
-          $or: [{ email: user.email }, { username: user.username }],
-        });
-  
-        if (!exists) {
-          if (!user.password) throw new Error(`Missing password for ${user.email}`);
-  
-          const hashedPassword = await bcrypt.hash(user.password, 10);
-          const newUser = new User({ ...user, password: hashedPassword });
-          await newUser.save();
-  
-          console.log(`✅ SuperAdmin ${user.email} added.`);
-          logAudit(`SuperAdmin created: ${user.email} (${user.username})`);
-          await sendAdminWelcomeEmail(user.email, user.fname);
-        }
-      } catch (err: any) {
-        console.error(`❌ Failed to add ${user.email}:`, err.message);
-        logAudit(`❌ Failed to add SuperAdmin ${user.email}: ${err.message}`);
+  const superAdminUsers = [
+    {
+      fname: "Opeyemi",
+      lname: "Oduyemi",
+      email: "hello@yemi.dev",
+      username: "oduyemi",
+      phone: "+2348166336187",
+      password: process.env.OPEYEMI,
+      role: "superAdmin",
+    },
+    // Add more if needed
+  ];
+
+  for (const user of superAdminUsers) {
+    try {
+      const exists = await User.findOne({
+        $or: [{ email: user.email }, { username: user.username }],
+      });
+
+      if (exists) {
+        console.log(`⚠️ SuperAdmin ${user.email} already exists. Skipping...`);
+        continue;
       }
+
+      if (!user.password) {
+        throw new Error(`Missing password for ${user.email}`);
+      }
+
+      const hashedPassword = await bcrypt.hash(user.password, 10);
+      const newUser = new User({ ...user, password: hashedPassword });
+      await newUser.save();
+
+      console.log(`✅ SuperAdmin ${user.email} added.`);
+      logAudit(`SuperAdmin created: ${user.email} (${user.username})`);
+      await sendAdminWelcomeEmail(user.email, user.fname);
+    } catch (err: any) {
+      console.error(`❌ Failed to add ${user.email}:`, err.message);
+      logAudit(`❌ Failed to add SuperAdmin ${user.email}: ${err.message}`);
     }
   }
+}
+
   
 
 addSuperAdmins().catch((err) => console.error("SuperAdmin setup failed:", err));

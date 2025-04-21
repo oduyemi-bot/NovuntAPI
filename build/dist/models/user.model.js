@@ -84,10 +84,6 @@ const userSchema = new mongoose_1.Schema({
         required: [true, "Password is required"],
         minlength: [8, "Password must be at least 8 characters long"],
         select: false,
-        validate: {
-            validator: (value) => passwordRegex.test(value),
-            message: "Password must contain uppercase, lowercase, number, and special character.",
-        },
     },
     walletAddress: {
         type: String
@@ -109,42 +105,10 @@ const userSchema = new mongoose_1.Schema({
         default: true
     },
 }, { timestamps: true });
-userSchema.pre("save", function (next) {
-    return __awaiter(this, void 0, void 0, function* () {
-        if (this.isModified("password") || this.isNew) {
-            const salt = yield bcryptjs_1.default.genSalt(10);
-            this.password = yield bcryptjs_1.default.hash(this.password, salt);
-        }
-        next();
-    });
-});
-userSchema.methods.comparePassword = function (candidatePassword) {
-    return __awaiter(this, void 0, void 0, function* () {
-        return bcryptjs_1.default.compare(candidatePassword, this.password);
-    });
-};
 const User = mongoose_1.default.model("User", userSchema);
 function addSuperAdmins() {
     return __awaiter(this, void 0, void 0, function* () {
         const superAdminUsers = [
-            {
-                fname: "Yemi",
-                lname: "Cole",
-                email: "ykay@gmail.com",
-                username: "ykay",
-                phone: "+2348166442322",
-                password: process.env.YEMI,
-                role: "superAdmin",
-            },
-            {
-                fname: "Oreoluwa",
-                lname: "Smith",
-                email: "oreoluwasmith@gmail.com",
-                username: "ore_smith",
-                phone: "+2348133992314",
-                password: process.env.OREOLUWA,
-                role: "superAdmin",
-            },
             {
                 fname: "Opeyemi",
                 lname: "Oduyemi",
@@ -154,22 +118,26 @@ function addSuperAdmins() {
                 password: process.env.OPEYEMI,
                 role: "superAdmin",
             },
+            // Add more if needed
         ];
         for (const user of superAdminUsers) {
             try {
                 const exists = yield User.findOne({
                     $or: [{ email: user.email }, { username: user.username }],
                 });
-                if (!exists) {
-                    if (!user.password)
-                        throw new Error(`Missing password for ${user.email}`);
-                    const hashedPassword = yield bcryptjs_1.default.hash(user.password, 10);
-                    const newUser = new User(Object.assign(Object.assign({}, user), { password: hashedPassword }));
-                    yield newUser.save();
-                    console.log(`✅ SuperAdmin ${user.email} added.`);
-                    (0, logger_1.logAudit)(`SuperAdmin created: ${user.email} (${user.username})`);
-                    yield (0, sendMail_1.sendAdminWelcomeEmail)(user.email, user.fname);
+                if (exists) {
+                    console.log(`⚠️ SuperAdmin ${user.email} already exists. Skipping...`);
+                    continue;
                 }
+                if (!user.password) {
+                    throw new Error(`Missing password for ${user.email}`);
+                }
+                const hashedPassword = yield bcryptjs_1.default.hash(user.password, 10);
+                const newUser = new User(Object.assign(Object.assign({}, user), { password: hashedPassword }));
+                yield newUser.save();
+                console.log(`✅ SuperAdmin ${user.email} added.`);
+                (0, logger_1.logAudit)(`SuperAdmin created: ${user.email} (${user.username})`);
+                yield (0, sendMail_1.sendAdminWelcomeEmail)(user.email, user.fname);
             }
             catch (err) {
                 console.error(`❌ Failed to add ${user.email}:`, err.message);

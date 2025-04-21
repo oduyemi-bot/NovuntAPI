@@ -6,12 +6,12 @@ const router = Router();
 
 router.post(
   "/register",
-  validateRequestBody([" fname", "lname", "email", "username", "password", "confirmPassword"]), 
+  validateRequestBody(["fname", "lname", "email", "username", "password", "confirmPassword"]), 
   validatePassword,
   initiateRegistration
 );
 router.post("/verify-email", resendVerificationCode);
-router.post("complete-registration", completeRegistration);
+router.post("/complete-registration", completeRegistration);
 router.post(
   "/login",
   validateLogin,

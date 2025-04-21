@@ -16,10 +16,11 @@ exports.sendVerificationTOTP = void 0;
 exports.sendAdminWelcomeEmail = sendAdminWelcomeEmail;
 const speakeasy_1 = __importDefault(require("speakeasy"));
 const transporter_1 = require("./transporter");
+const tempUser_model_1 = __importDefault(require("../models/tempUser.model"));
 function sendAdminWelcomeEmail(email, name) {
     return __awaiter(this, void 0, void 0, function* () {
         const mailOptions = {
-            from: `"YourApp Support" <${process.env.MAIL_USER}>`,
+            from: `"Novunt Support" <${process.env.MAIL_USER}>`,
             to: email,
             subject: "Welcome, Super Admin!",
             html: `
@@ -36,8 +37,17 @@ const sendVerificationTOTP = (email, name) => __awaiter(void 0, void 0, void 0, 
     const token = speakeasy_1.default.totp({
         secret: secret.base32,
         encoding: "base32",
-        step: 180, // 3 minutes
+        step: 300, // 5 minutes validity
     });
+    // Calculate expiration time
+    const expirationTime = Date.now() + 300 * 1000; // Token expires in 5 minutes
+    // Store the token and expiration in the TempUser database
+    const tempUser = yield tempUser_model_1.default.findOneAndUpdate({ email }, {
+        secret: secret.base32, // Save the secret too
+        verificationToken: token, // Save the generated token
+        tokenExpiration: expirationTime // Save the expiration time
+    }, { upsert: true, new: true } // Create the document if it doesn't exist, return the updated document
+    );
     const mailOptions = {
         from: `"Novunt" <${process.env.EMAIL_USER}>`,
         to: email,
@@ -46,12 +56,12 @@ const sendVerificationTOTP = (email, name) => __awaiter(void 0, void 0, void 0, 
       <p>Hello <b>${name}</b>,</p>
       <p>Your verification code is:</p>
       <h2>${token}</h2>
-      <p>This code will expire in 3 minutes.</p>
+      <p>This code will expire in 5 minutes.</p>
     `,
     };
     yield transporter_1.transporter.sendMail(mailOptions);
     return {
-        token, // return it only for development/debug; remove in prod
+        token, // returning for debug purposes, remove in production
         secret: secret.base32,
     };
 });

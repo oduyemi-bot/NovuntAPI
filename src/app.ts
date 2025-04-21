@@ -9,6 +9,9 @@ import { db, store } from "./config/index";
 import AppError from "./utils/app.error";
 import appRoutes from "./routes/app.route";
 import authRoutes from "./routes/auth.route";
+import userRoutes from "./routes/user.route";
+
+
 
 
 dotenv.config();
@@ -55,8 +58,9 @@ app.use(rateLimit({
 
 
 // Routes
-app.use("/api/v1", appRoutes);
-app.use("/api/v1/auth", authRoutes);
+app.use("/api/v1", appRoutes);  
+app.use("/api/v1/auth", authRoutes); 
+app.use("/api/v1/users", userRoutes);
 
 
 
