@@ -97,6 +97,26 @@ const userSchema = new mongoose_1.Schema({
         enum: ["admin", "superAdmin", "user"],
         default: "user"
     },
+    referrer: {
+        type: mongoose_1.default.Schema.Types.ObjectId,
+        ref: "User",
+    },
+    referralBonusBalance: {
+        type: Number,
+        default: 0,
+    },
+    rank: {
+        type: String,
+        enum: ["None", "Associate Staker", "Principal Strategist", "Elite Capitalist", "Wealth Architect", "Finance Titan"],
+        default: "None",
+    },
+    directDownlines: [{
+            type: mongoose_1.default.Schema.Types.ObjectId,
+            ref: "User"
+        }],
+    teamStake: {
+        type: Number, default: 0
+    },
     isActive: {
         type: Boolean,
         default: true

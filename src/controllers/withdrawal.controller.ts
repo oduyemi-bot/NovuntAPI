@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import "./jobs/depositListener";
+import "../jobs/depositListener";
 import UserWallet from "../models/userWallet.model";
 import Transaction from "../models/transaction.model";
 import { sendWithdrawalRequestEmail } from "../utils/sendMail";

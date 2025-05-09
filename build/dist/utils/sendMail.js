@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.sendWithdrawalStatusEmail = exports.sendWithdrawalApprovedEmail = exports.sendWithdrawalRequestEmail = exports.sendVerificationTOTP = void 0;
+exports.sendDepletionWarningEmail = exports.sendWithdrawalStatusEmail = exports.sendWithdrawalApprovedEmail = exports.sendWithdrawalRequestEmail = exports.sendVerificationTOTP = void 0;
 exports.sendAdminWelcomeEmail = sendAdminWelcomeEmail;
 const speakeasy_1 = __importDefault(require("speakeasy"));
 const transporter_1 = require("./transporter");
@@ -153,3 +153,33 @@ const sendWithdrawalStatusEmail = (to, status, amount) => __awaiter(void 0, void
     }
 });
 exports.sendWithdrawalStatusEmail = sendWithdrawalStatusEmail;
+const sendDepletionWarningEmail = (userID, bonusAmount) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const user = yield user_model_1.default.findById(userID);
+        if (!user || !user.email) {
+            console.warn("User email not found for depletion warning alert");
+            return;
+        }
+        const mailOptions = {
+            from: `"Novunt Referrals" <${process.env.MAIL_USER}>`,
+            to: user.email,
+            subject: "⚠️ 3 Days Left Before Your Referral Bonus Starts Depleting",
+            html: `
+        <h3>Referral Bonus Depletion Warning</h3>
+        <p>Hi ${user.fname},</p>
+        <p>You received a referral bonus of <strong>${bonusAmount} USDT</strong> from your network.</p>
+        <p><strong>Action Required:</strong> Stake at least 10 USDT within the next 3 days to preserve your full bonus.</p>
+        <p>If no stake is made by Day 30, your bonus will begin depleting by 1% daily until fully removed.</p>
+        <p>Secure your bonus now and maximize your earnings.</p>
+        <br/>
+        <p>– Novunt Team</p>
+      `,
+        };
+        yield transporter_1.transporter.sendMail(mailOptions);
+        console.log(`Depletion warning sent to ${user.email}`);
+    }
+    catch (error) {
+        console.error("Error sending depletion warning email:", error);
+    }
+});
+exports.sendDepletionWarningEmail = sendDepletionWarningEmail;

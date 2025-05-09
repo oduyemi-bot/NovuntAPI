@@ -33,6 +33,8 @@ const transaction_route_1 = __importDefault(require("./routes/transaction.route"
 const admin_route_1 = __importDefault(require("./routes/admin.route"));
 const withdrawal_route_1 = __importDefault(require("./routes/withdrawal.route"));
 const wallet_route_1 = __importDefault(require("./routes/wallet.route"));
+const bonus_route_1 = __importDefault(require("./routes/bonus.route"));
+const transfer_route_1 = __importDefault(require("./routes/transfer.route"));
 const mockNowPayments_1 = require("./utils/mockNowPayments");
 const mockNowPayments_2 = require("./utils/mockNowPayments");
 dotenv_1.default.config();
@@ -86,6 +88,8 @@ app.use("/api/v1/transactions", transaction_route_1.default);
 app.use("/api/v1/admin", admin_route_1.default);
 app.use("/api/v1/withdrawals", withdrawal_route_1.default);
 app.use("/api/v1/wallets", wallet_route_1.default);
+app.use("/api/v1/bonus", bonus_route_1.default);
+app.use("/api/v1/transfer", transfer_route_1.default);
 app.all("*", (req, res, next) => {
     next(new app_error_1.default(`The route ${req.originalUrl} with the ${req.method} method does not exist on this server! 💨`, 404));
 });

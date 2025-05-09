@@ -13,7 +13,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.requestMockWithdrawal = exports.requestWithdrawal = void 0;
-require("./jobs/depositListener");
+require("../jobs/depositListener");
 const userWallet_model_1 = __importDefault(require("../models/userWallet.model"));
 const transaction_model_1 = __importDefault(require("../models/transaction.model"));
 const sendMail_1 = require("../utils/sendMail");

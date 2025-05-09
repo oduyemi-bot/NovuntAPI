@@ -84,9 +84,9 @@ export const getReferralBonusById = async (req: Request, res: Response) => {
 
 export const getBonusByUserId = async (req: Request, res: Response) => {
   try {
-    const { userId } = req.params;
+    const { id } = req.params;
 
-    const bonuses = await BonusHistory.find({ user: userId })
+    const bonuses = await BonusHistory.find({ user: id })
       .populate("user", "username email")
       .exec();
 

@@ -19,7 +19,8 @@ import transactionRoutes from "./routes/transaction.route";
 import adminRoutes from "./routes/admin.route";
 import withdrawalRoutes from "./routes/withdrawal.route";
 import walletRoutes from "./routes/wallet.route";
-import referralBonusRoutes from "./routes/referralBonus.routes";
+import referralBonusRoutes from "./routes/bonus.route";
+import transferRoutes from "./routes/transfer.route";
 import { checkMockNowPaymentsDeposits, simulateDepositConfirmation } from "./utils/mockNowPayments";
 import { mockNowPaymentsWithdraw } from "./utils/mockNowPayments";
 
@@ -89,7 +90,8 @@ app.use("/api/v1/transactions", transactionRoutes);
 app.use("/api/v1/admin", adminRoutes);
 app.use("/api/v1/withdrawals", withdrawalRoutes);
 app.use("/api/v1/wallets", walletRoutes);
-app.use("/api/v1/referral-bonus", referralBonusRoutes);
+app.use("/api/v1/bonus", referralBonusRoutes);
+app.use("/api/v1/transfer", transferRoutes);
 
 
 app.all("*", (req, res, next) => {

@@ -3,38 +3,37 @@ import Stake from "../models/stake.model";
 
 export const calculateRedistributionBonus = async (totalPoolAmount: number) => {
   try {
-    // Fetch all active users with their stakes
+    // Fetch all active users
     const users = await User.find({ isActive: true });
 
-    const totalStake = users.reduce(async (acc, user) => {
-      const stake = await Stake.findOne({ user: user._id });
-      if (stake) {
-        return acc + stake.amount;
-      }
-      return acc;
-    }, 0);
+    let totalStake = 0;
+    const userStakes: { userId: string; amount: number }[] = [];
 
-    // Calculate the amount each user will receive from the redistribution pool
-    const redistributionPool = totalPoolAmount * 0.025; // 2.5% pool
+    // Calculate total stake and store individual stake amounts
+    for (const user of users) {
+      const stake = await Stake.findOne({ user: user._id });
+      if (stake && stake.amount >= 10) {
+        totalStake += stake.amount;
+        userStakes.push({ userId: user._id.toString(), amount: stake.amount });
+      }
+    }
+
+    // Calculate the 2.5% redistribution pool
+    const redistributionPool = totalPoolAmount * 0.025;
 
     const redistributionBonuses = [];
 
-    for (const user of users) {
-      const stake = await Stake.findOne({ user: user._id });
-      if (!stake || stake.amount < 10) {
-        continue; // Skip users with no valid stake
-      }
-
-      const userShare = stake.amount / totalStake; // User’s share of the total stake
+    for (const stakeInfo of userStakes) {
+      const userShare = stakeInfo.amount / totalStake;
       const userBonus = redistributionPool * userShare;
 
       redistributionBonuses.push({
-        user: user._id,
+        user: stakeInfo.userId,
         bonusAmount: userBonus,
       });
 
-      // Update user balance with the bonus
-      await User.findByIdAndUpdate(user._id, {
+      // Update user bonus balance
+      await User.findByIdAndUpdate(stakeInfo.userId, {
         $inc: { referralBonusBalance: userBonus },
       });
     }
@@ -45,5 +44,3 @@ export const calculateRedistributionBonus = async (totalPoolAmount: number) => {
     console.error("Error calculating redistribution bonuses:", error);
   }
 };
-
-

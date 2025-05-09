@@ -7,9 +7,9 @@ const router = express.Router();
 // Referral bonuses
 router.get("/", getAllBonus);
 router.get("/:id", getBonusById);
-router.get("/referral/", getAllReferralBonus);
+router.get("/referrals/", getAllReferralBonus);
 router.get("/referral/:id", getReferralBonusById);
-router.get("/user/:userId", getBonusByUserId);
+router.get("/user/:id", getBonusByUserId);
 
 // Ranking bonuses
 router.post("/ranking", applyRankingBonuses);
