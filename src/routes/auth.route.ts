@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { initiateRegistration, resendVerificationCode, completeRegistration, login, logout } from "../controllers/auth.controller";
+import { initiateRegistration, resendVerificationCode, completeRegistration, login, logout, generate2FASecret, enable2FA, verify2FA } from "../controllers/auth.controller";
 import { validateRequestBody, validatePassword, validateLogin } from "../middlewares/validation.middleware";
 
 const router = Router();
@@ -17,6 +17,9 @@ router.post(
   validateLogin,
   login
 );
+router.post('/auth/generate-2fa-secret', generate2FASecret);
+router.post('/auth/enable-2fa', enable2FA);
+router.post('/auth/verify-2fa', verify2FA);
 router.post("/logout/:userID", logout); 
 
 export default router;

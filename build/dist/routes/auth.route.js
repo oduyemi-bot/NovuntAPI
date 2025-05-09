@@ -8,5 +8,8 @@ router.post("/register", (0, validation_middleware_1.validateRequestBody)(["fnam
 router.post("/verify-email", auth_controller_1.resendVerificationCode);
 router.post("/complete-registration", auth_controller_1.completeRegistration);
 router.post("/login", validation_middleware_1.validateLogin, auth_controller_1.login);
+router.post('/auth/generate-2fa-secret', auth_controller_1.generate2FASecret);
+router.post('/auth/enable-2fa', auth_controller_1.enable2FA);
+router.post('/auth/verify-2fa', auth_controller_1.verify2FA);
 router.post("/logout/:userID", auth_controller_1.logout);
 exports.default = router;

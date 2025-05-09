@@ -12,33 +12,29 @@ export interface AuthenticatedRequest extends Request {
 export const authenticateUser = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
     const token = req.headers.authorization?.split(" ")[1];
-
     if (!token) {
       res.status(401).json({ message: "Access token is missing" });
       return;
-    }
+    };
 
-    let decoded;
-    try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET as string) as { id: string };
-    } catch (error) {
-      res.status(401).json({ message: "Invalid or expired token" });
-      return;
-    }
-
-    const user = await User.findById(decoded.id);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userID: string };
+    const user = await User.findById(decoded.userID);
     if (!user) {
-      res.status(401).json({ message: "User not found. Invalid token." });
+      res.status(404).json({ message: "User not found." });
       return;
     }
 
     req.user = user;
     next();
-  } catch (error) {
-    console.error("Authentication error:", error);
-    res.status(401).json({ message: "Unauthorized" });
+  } catch (err) {
+    if (err instanceof jwt.TokenExpiredError) {
+      res.status(401).json({ message: "Token expired. Please login again." });
+    } else {
+      res.status(401).json({ message: "Invalid token." });
+    }    
   }
 };
+
 
 export const checkAdmin = (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
   if (!req.user) {
@@ -59,6 +55,14 @@ export const checkSuperAdmin = (req: AuthenticatedRequest, res: Response, next: 
   if (!req.user || req.user.role !== "superAdmin") {
       res.status(403).json({ message: "Forbidden: Only super administrators can perform this action." });
       return;
+  }
+  next();
+};
+
+
+export const require2FA = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  if (!req.user || !req.user.twoFAEnabled) {
+    return res.status(403).json({ message: "2FA required" });
   }
   next();
 };

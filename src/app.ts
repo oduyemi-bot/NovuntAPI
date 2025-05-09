@@ -6,16 +6,40 @@ import session from "express-session";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { db, store } from "./config/index"; 
+import "./jobs/depositListener";
+import "./jobs/stakeRoiPayout"; 
 import AppError from "./utils/app.error";
+import "./utils/mockNowPayments";
+import "./utils/mockDepositListener";
+import "./utils/mockWithdrawalListener";
 import appRoutes from "./routes/app.route";
 import authRoutes from "./routes/auth.route";
 import userRoutes from "./routes/user.route";
-
-
+import transactionRoutes from "./routes/transaction.route";
+import adminRoutes from "./routes/admin.route";
+import withdrawalRoutes from "./routes/withdrawal.route";
+import walletRoutes from "./routes/wallet.route";
+import referralBonusRoutes from "./routes/referralBonus.routes";
+import { checkMockNowPaymentsDeposits, simulateDepositConfirmation } from "./utils/mockNowPayments";
+import { mockNowPaymentsWithdraw } from "./utils/mockNowPayments";
 
 
 dotenv.config();
 const app: Application = express();
+
+
+setInterval(async () => {
+  const deposits = await checkMockNowPaymentsDeposits();
+  for (const deposit of deposits) {
+    simulateDepositConfirmation(deposit); 
+  }
+}, 5000);
+
+mockNowPaymentsWithdraw({
+  userId: "6810d6a7380c8efae91eac5d",
+  address: "usdt_mock_wallet_address_here",
+  amount: 50,
+});
 
 const corsOptions = {
   origin: ["http://localhost:3000"],
@@ -61,7 +85,11 @@ app.use(rateLimit({
 app.use("/api/v1", appRoutes);  
 app.use("/api/v1/auth", authRoutes); 
 app.use("/api/v1/users", userRoutes);
-
+app.use("/api/v1/transactions", transactionRoutes);
+app.use("/api/v1/admin", adminRoutes);
+app.use("/api/v1/withdrawals", withdrawalRoutes);
+app.use("/api/v1/wallets", walletRoutes);
+app.use("/api/v1/referral-bonus", referralBonusRoutes);
 
 
 app.all("*", (req, res, next) => {

@@ -16,10 +16,14 @@ export interface IUser extends Document {
   username: string;
   email: string;
   password: string;
-  walletAddress? : string;
   twoFAEnabled: boolean;
   twoFASecret: string;
   role: "admin" | "superAdmin" | "user";
+  referrer?: mongoose.Types.ObjectId;
+  referralBonusBalance?: number;
+  rank: string;
+  directDownlines: mongoose.Types.ObjectId[]; 
+  teamStake: number;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -65,10 +69,6 @@ const userSchema = new Schema<IUser>(
       select: false,
     },
 
-    walletAddress: { 
-        type: String 
-    },
-
     twoFAEnabled: { 
         type: Boolean, 
         default: false 
@@ -82,6 +82,31 @@ const userSchema = new Schema<IUser>(
         type: String, 
         enum: ["admin", "superAdmin", "user"], 
         default: "user" 
+    },
+
+    referrer: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },    
+
+    referralBonusBalance: {
+      type: Number,
+      default: 0,
+    },    
+
+    rank: {
+      type: String,
+      enum: ["None", "Associate Staker", "Principal Strategist", "Elite Capitalist", "Wealth Architect", "Finance Titan"],
+      default: "None",
+    },
+
+    directDownlines: [{ 
+      type: mongoose.Schema.Types.ObjectId, 
+      ref: "User" 
+    }],
+
+    teamStake: { 
+      type: Number, default: 0 
     },
 
     isActive: { 

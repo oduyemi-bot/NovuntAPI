@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.checkSuperAdmin = exports.checkAdmin = exports.authenticateUser = void 0;
+exports.require2FA = exports.checkSuperAdmin = exports.checkAdmin = exports.authenticateUser = void 0;
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const user_model_1 = __importDefault(require("../models/user.model"));
@@ -25,25 +25,23 @@ const authenticateUser = (req, res, next) => __awaiter(void 0, void 0, void 0, f
             res.status(401).json({ message: "Access token is missing" });
             return;
         }
-        let decoded;
-        try {
-            decoded = jsonwebtoken_1.default.verify(token, process.env.JWT_SECRET);
-        }
-        catch (error) {
-            res.status(401).json({ message: "Invalid or expired token" });
-            return;
-        }
-        const user = yield user_model_1.default.findById(decoded.id);
+        ;
+        const decoded = jsonwebtoken_1.default.verify(token, process.env.JWT_SECRET);
+        const user = yield user_model_1.default.findById(decoded.userID);
         if (!user) {
-            res.status(401).json({ message: "User not found. Invalid token." });
+            res.status(404).json({ message: "User not found." });
             return;
         }
         req.user = user;
         next();
     }
-    catch (error) {
-        console.error("Authentication error:", error);
-        res.status(401).json({ message: "Unauthorized" });
+    catch (err) {
+        if (err instanceof jsonwebtoken_1.default.TokenExpiredError) {
+            res.status(401).json({ message: "Token expired. Please login again." });
+        }
+        else {
+            res.status(401).json({ message: "Invalid token." });
+        }
     }
 });
 exports.authenticateUser = authenticateUser;
@@ -68,3 +66,10 @@ const checkSuperAdmin = (req, res, next) => {
     next();
 };
 exports.checkSuperAdmin = checkSuperAdmin;
+const require2FA = (req, res, next) => {
+    if (!req.user || !req.user.twoFAEnabled) {
+        return res.status(403).json({ message: "2FA required" });
+    }
+    next();
+};
+exports.require2FA = require2FA;
