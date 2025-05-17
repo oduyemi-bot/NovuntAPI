@@ -15,6 +15,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.mockNowPaymentsWithdraw = exports.checkMockNowPaymentsDeposits = exports.mockGenerateWalletAddress = void 0;
 exports.simulateDepositConfirmation = simulateDepositConfirmation;
 const mockBlockchainEmitter_1 = __importDefault(require("./mockBlockchainEmitter"));
+const uuid_1 = require("uuid");
 // --- Mock Wallet Address Generator ---
 const mockGenerateWalletAddress = (userId) => {
     const randomSuffix = Math.random().toString(36).substring(2, 10);
@@ -23,7 +24,7 @@ const mockGenerateWalletAddress = (userId) => {
 exports.mockGenerateWalletAddress = mockGenerateWalletAddress;
 // --- Mock Deposit Queue ---
 const pendingMockDeposits = [
-    { userId: "6810d6a7380c8efae91eac5d", amount: 100, txId: "mocktx123" },
+    { userId: "6810d6a7380c8efae91eac5d", amount: 100, txId: `mocktx_${(0, uuid_1.v4)()}` },
 ];
 // --- Check for Confirmed Mock Deposits ---
 const checkMockNowPaymentsDeposits = () => __awaiter(void 0, void 0, void 0, function* () {
@@ -42,7 +43,7 @@ const mockNowPaymentsWithdraw = (_a) => __awaiter(void 0, [_a], void 0, function
     }
     console.log(`[MOCK] Withdrawing ${amount} ${currency} to ${address}...`);
     yield new Promise((res) => setTimeout(res, 1000)); // simulate API delay
-    const txId = `mock_withdraw_${Math.random().toString(36).substring(2, 10)}`;
+    const txId = `mock_withdraw_${(0, uuid_1.v4)()}`;
     const timestamp = new Date().toISOString();
     const withdrawalData = {
         userId,

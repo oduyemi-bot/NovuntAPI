@@ -11,6 +11,7 @@ import {
   getAdminProfile,
   reviewKYCSubmission,
   adminLogout,
+  declareWeeklyProfit,
 } from "../controllers/admin.controller";
 import { authenticateUser, checkAdmin, checkSuperAdmin, require2FA } from "../middlewares/auth.middleware";
 import { getStakesByUserId } from "../controllers/transaction.controller";
@@ -37,6 +38,7 @@ router.get("/activity-logs", authenticateUser, checkSuperAdmin, getAdminActivity
 
 // Transaction management routes
 router.get("/transactions", authenticateUser, checkAdmin, getAllTransactions);
+router.post("/declare-weekly-profit", authenticateUser, checkAdmin, declareWeeklyProfit);
 
 // KYC review route
 router.patch("/kyc/review/:kycId", authenticateUser, checkAdmin, reviewKYCSubmission);

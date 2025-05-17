@@ -23,6 +23,7 @@ router.get("/flagged-activities", auth_middleware_1.authenticateUser, auth_middl
 router.get("/activity-logs", auth_middleware_1.authenticateUser, auth_middleware_1.checkSuperAdmin, admin_controller_1.getAdminActivityLogs);
 // Transaction management routes
 router.get("/transactions", auth_middleware_1.authenticateUser, auth_middleware_1.checkAdmin, admin_controller_1.getAllTransactions);
+router.post("/declare-weekly-profit", auth_middleware_1.authenticateUser, auth_middleware_1.checkAdmin, admin_controller_1.declareWeeklyProfit);
 // KYC review route
 router.patch("/kyc/review/:kycId", auth_middleware_1.authenticateUser, auth_middleware_1.checkAdmin, admin_controller_1.reviewKYCSubmission);
 exports.default = router;

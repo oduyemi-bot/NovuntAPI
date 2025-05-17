@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import UserWallet from "../models/userWallet.model";
 import Transaction from "../models/transaction.model";
 import AdminActivityLog from "../models/adminActivityLog.model";
+import WeeklyProfit from "../models/weeklyProfit.model";
 import KYCSubmission from "../models/kycSubmission.model";
 import SecurityLog from "../models/securityLog.model";
 import { mockNowPaymentsWithdraw } from "../utils/mockNowPayments";
@@ -17,6 +18,8 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
 import { logAudit } from "../utils/logger";
+import mockBlockchainEmitter from "../utils/mockBlockchainEmitter";
+import axios from "axios";
 
 
 const WITHDRAWAL_FEE_PERCENTAGE = 3; // 3%
@@ -129,7 +132,7 @@ export const getAdminProfile = async (req: AuthenticatedRequest, res: Response) 
 
 export const approveWithdrawal = async (req: AuthenticatedRequest, res: Response) => {
   const { transactionId } = req.params;
-  const { action, note } = req.body; // "approve" or "reject", optional note
+  const { action, note } = req.body;
   const admin = req.user;
 
   if (!admin) return res.status(401).json({ message: "Unauthorized" });
@@ -144,7 +147,7 @@ export const approveWithdrawal = async (req: AuthenticatedRequest, res: Response
   }
 
   const user = tx.user as any;
-  const wallet = await UserWallet.findOne({ user: tx.user._id });
+  const wallet = await UserWallet.findOne({ user: user._id });
   if (!wallet) {
     return res.status(404).json({ message: "User wallet not found." });
   }
@@ -169,11 +172,9 @@ export const approveWithdrawal = async (req: AuthenticatedRequest, res: Response
       tx.amount > FLAG_THRESHOLD_AMOUNT || recentWithdrawalsCount >= FLAG_THRESHOLD_COUNT;
 
     if (isFraudSuspected) {
-      // Auto-flag user for fraud review
       user.fraudFlagged = true;
       await user.save();
 
-      // Log security event
       await SecurityLog.create({
         user: user._id,
         action: "fraud_alert_triggered",
@@ -185,7 +186,7 @@ export const approveWithdrawal = async (req: AuthenticatedRequest, res: Response
 
       const reason = "Suspicious withdrawal amount or frequency detected";
       const details = `Amount: ${tx.amount} USDT, Recent withdrawals in last 24h: ${recentWithdrawalsCount}, Flagged by admin: ${admin.email}`;
-      // Send fraud alert emails to admins and superAdmins
+
       await sendFraudAlertEmail(user.email, user.username, reason, details);
       await sendUserFraudNotificationEmail(
         user.email,
@@ -194,9 +195,7 @@ export const approveWithdrawal = async (req: AuthenticatedRequest, res: Response
       );
     }
 
-
-    const currentTx = await Transaction.findById(transactionId);
-    if (!currentTx || currentTx.status !== "pending") {
+    if (tx.status !== "pending") {
       return res.status(400).json({ message: "Transaction already processed." });
     }
 
@@ -218,7 +217,16 @@ export const approveWithdrawal = async (req: AuthenticatedRequest, res: Response
     tx.txId = result.txId;
     tx.method = "nowpayments";
     tx.processedAt = new Date();
+    // Optional: Add approval note
+    tx.note = `Approved by admin ${admin.email}`;
     await tx.save();
+
+    mockBlockchainEmitter.emit("withdrawalConfirmed", {
+      userId: user._id.toString(),
+      amount: tx.amount,
+      txId: result.txId,
+      timestamp: new Date(),
+    });
 
     await sendWithdrawalStatusEmail(user.email, "approved", tx.amount);
     await sendWithdrawalApprovedEmail({
@@ -233,7 +241,7 @@ export const approveWithdrawal = async (req: AuthenticatedRequest, res: Response
       admin: admin._id,
       action: "approve_withdrawal",
       target: user._id,
-      metadata: { txId: transactionId, amount: tx.amount },
+      metadata: { txId: transactionId, amount: tx.amount, method: "nowpayments" },
     });
 
     await SecurityLog.create({
@@ -246,52 +254,54 @@ export const approveWithdrawal = async (req: AuthenticatedRequest, res: Response
     });
 
     return res.status(200).json({ message: "Withdrawal approved and processed.", txId: result.txId });
-  } else {
-    tx.status = "failed";
-    tx.note = note || "Rejected by admin";
-    tx.processedAt = new Date();
-    await tx.save();
-    await sendWithdrawalStatusEmail(user.email, "rejected", tx.amount);
-
-    await AdminActivityLog.create({
-      admin: admin._id,
-      action: "reject_withdrawal",
-      target: user._id,
-      metadata: { txId: transactionId, amount: tx.amount, note: note || "Rejected by admin" },
-    });
-
-    await SecurityLog.create({
-      user: user._id,
-      action: "withdrawal_rejected",
-      status: "failure",
-      ipAddress: req.ip,
-      userAgent: req.get("User-Agent"),
-      details: `Rejected by admin ${admin._id}. Amount: ${tx.amount}, Reason: ${note || "Admin rejected"}`,
-    });
-
-    const recentRejected = await Transaction.countDocuments({
-      user: user._id,
-      type: "withdrawal",
-      status: "failed",
-      createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
-    });
-
-    const flagged = recentRejected >= FLAG_THRESHOLD_COUNT || tx.amount >= FLAG_THRESHOLD_AMOUNT;
-
-    if (flagged) {
-      user.flaggedForReview = true;
-      await user.save();
-
-      await sendFraudAlertEmail(
-        user.email,               // flaggedUserEmail
-        user.username,            // flaggedUsername
-        "Multiple failed withdrawal attempts or suspicious amount",  // reason
-        `Attempts: ${recentRejected}, Amount: ${tx.amount}, Flagged By: ${admin.email}` // details string
-      );
-    }
-
-    return res.status(200).json({ message: "Withdrawal rejected." });
   }
+
+  // ---- REJECTION FLOW ----
+  tx.status = "failed";
+  tx.note = note || "Rejected by admin";
+  tx.processedAt = new Date();
+  await tx.save();
+
+  await sendWithdrawalStatusEmail(user.email, "rejected", tx.amount);
+
+  await AdminActivityLog.create({
+    admin: admin._id,
+    action: "reject_withdrawal",
+    target: user._id,
+    metadata: { txId: transactionId, amount: tx.amount, note: tx.note },
+  });
+
+  await SecurityLog.create({
+    user: user._id,
+    action: "withdrawal_rejected",
+    status: "failure",
+    ipAddress: req.ip,
+    userAgent: req.get("User-Agent"),
+    details: `Rejected by admin ${admin._id}. Amount: ${tx.amount}, Reason: ${tx.note}`,
+  });
+
+  const recentRejected = await Transaction.countDocuments({
+    user: user._id,
+    type: "withdrawal",
+    status: "failed",
+    createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
+  });
+
+  const flagged = recentRejected >= FLAG_THRESHOLD_COUNT || tx.amount >= FLAG_THRESHOLD_AMOUNT;
+
+  if (flagged) {
+    user.flaggedForReview = true;
+    await user.save();
+
+    await sendFraudAlertEmail(
+      user.email,
+      user.username,
+      "Multiple failed withdrawal attempts or suspicious amount",
+      `Attempts: ${recentRejected}, Amount: ${tx.amount}, Flagged By: ${admin.email}`
+    );
+  }
+
+  return res.status(200).json({ message: "Withdrawal rejected." });
 };
 
 
@@ -443,5 +453,43 @@ export const adminLogout = async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Logout error:", error);
     res.status(500).json({ message: "Failed to logout admin." });
+  }
+};
+
+export const declareWeeklyProfit = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { weekNumber, profitAmount, startDate, endDate } = req.body;
+
+    if (!weekNumber || !profitAmount || !startDate || !endDate) {
+      return res.status(400).json({ success: false, message: "All fields are required." });
+    }
+
+    const existing = await WeeklyProfit.findOne({ weekNumber });
+    if (existing) {
+      return res.status(409).json({ success: false, message: "Profit already declared for this week." });
+    }
+
+    await WeeklyProfit.create({
+      weekNumber,
+      profitAmount,
+      startDate,
+      endDate,
+    });
+
+    // Trigger bonus ranking and redistribution
+    try {
+      await axios.post("https://novunt.vercel.app/api/v1/bonus/ranking");
+      await axios.post("https://novunt.vercel.app/api/v1/bonus/redistribution");
+    } catch (bonusError) {
+      console.error("Bonus trigger failed:", bonusError);
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: `Weekly profit for week ${weekNumber} declared successfully. Bonus triggers initiated.`,
+    });
+  } catch (error) {
+    console.error("Error declaring weekly profit:", error);
+    res.status(500).json({ success: false, message: "Internal server error" });
   }
 };

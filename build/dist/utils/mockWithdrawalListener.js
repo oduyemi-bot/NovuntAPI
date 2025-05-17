@@ -17,14 +17,14 @@ const transaction_model_1 = __importDefault(require("../models/transaction.model
 mockBlockchainEmitter_1.default.on("withdrawalConfirmed", (data) => __awaiter(void 0, void 0, void 0, function* () {
     const { userId, amount, txId, timestamp } = data;
     try {
-        yield transaction_model_1.default.create({
-            user: userId,
-            type: "withdrawal",
-            amount,
-            status: "confirmed",
-            txId,
-            timestamp: new Date(timestamp),
-        });
+        const existingTx = yield transaction_model_1.default.findOne({ user: userId, txId });
+        if (!existingTx) {
+            console.warn(`[MOCK LISTENER] No matching transaction found for txId ${txId}`);
+            return;
+        }
+        existingTx.status = "confirmed";
+        existingTx.timestamp = new Date(timestamp);
+        yield existingTx.save();
         console.log(`[MOCK LISTENER] Withdrawal confirmed for user ${userId}: ${amount} USDT`);
     }
     catch (err) {

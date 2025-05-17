@@ -25,3 +25,5 @@
 2025-04-29T13:25:02.801Z - SuperAdmin created: hello@yemi.dev (oduyemi)
 2025-04-29T13:31:05.691Z - SuperAdmin created: hello@yemi.dev (oduyemi)
 2025-05-09T16:02:42.935Z - SuperAdmin created: hello@yemi.dev (oduyemi)
+2025-05-17T11:24:35.547Z - SuperAdmin created: hello@yemi.dev (oduyemi)
+2025-05-17T11:34:02.580Z - ❌ Failed to add SuperAdmin hello@yemi.dev: Operation `users.findOne()` buffering timed out after 10000ms

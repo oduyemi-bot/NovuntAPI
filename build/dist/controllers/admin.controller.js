@@ -12,10 +12,11 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.adminLogout = exports.reviewKYCSubmission = exports.getAdminActivityLogs = exports.getFlaggedActivities = exports.getAllUsersWithBalances = exports.getAllTransactions = exports.approveWithdrawal = exports.getAdminProfile = exports.updateAdminPassword = exports.updateAdminProfilePicture = exports.adminLogin = void 0;
+exports.declareWeeklyProfit = exports.adminLogout = exports.reviewKYCSubmission = exports.getAdminActivityLogs = exports.getFlaggedActivities = exports.getAllUsersWithBalances = exports.getAllTransactions = exports.approveWithdrawal = exports.getAdminProfile = exports.updateAdminPassword = exports.updateAdminProfilePicture = exports.adminLogin = void 0;
 const userWallet_model_1 = __importDefault(require("../models/userWallet.model"));
 const transaction_model_1 = __importDefault(require("../models/transaction.model"));
 const adminActivityLog_model_1 = __importDefault(require("../models/adminActivityLog.model"));
+const weeklyProfit_model_1 = __importDefault(require("../models/weeklyProfit.model"));
 const kycSubmission_model_1 = __importDefault(require("../models/kycSubmission.model"));
 const securityLog_model_1 = __importDefault(require("../models/securityLog.model"));
 const mockNowPayments_1 = require("../utils/mockNowPayments");
@@ -25,6 +26,7 @@ const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const logger_1 = require("../utils/logger");
+const mockBlockchainEmitter_1 = __importDefault(require("../utils/mockBlockchainEmitter"));
 const WITHDRAWAL_FEE_PERCENTAGE = 3; // 3%
 const FLAG_THRESHOLD_COUNT = 5;
 const FLAG_THRESHOLD_AMOUNT = 1000;
@@ -121,7 +123,7 @@ const getAdminProfile = (req, res) => __awaiter(void 0, void 0, void 0, function
 exports.getAdminProfile = getAdminProfile;
 const approveWithdrawal = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { transactionId } = req.params;
-    const { action, note } = req.body; // "approve" or "reject", optional note
+    const { action, note } = req.body;
     const admin = req.user;
     if (!admin)
         return res.status(401).json({ message: "Unauthorized" });
@@ -133,7 +135,7 @@ const approveWithdrawal = (req, res) => __awaiter(void 0, void 0, void 0, functi
         return res.status(404).json({ message: "Invalid or already processed transaction." });
     }
     const user = tx.user;
-    const wallet = yield userWallet_model_1.default.findOne({ user: tx.user._id });
+    const wallet = yield userWallet_model_1.default.findOne({ user: user._id });
     if (!wallet) {
         return res.status(404).json({ message: "User wallet not found." });
     }
@@ -152,10 +154,8 @@ const approveWithdrawal = (req, res) => __awaiter(void 0, void 0, void 0, functi
         });
         const isFraudSuspected = tx.amount > FLAG_THRESHOLD_AMOUNT || recentWithdrawalsCount >= FLAG_THRESHOLD_COUNT;
         if (isFraudSuspected) {
-            // Auto-flag user for fraud review
             user.fraudFlagged = true;
             yield user.save();
-            // Log security event
             yield securityLog_model_1.default.create({
                 user: user._id,
                 action: "fraud_alert_triggered",
@@ -166,12 +166,10 @@ const approveWithdrawal = (req, res) => __awaiter(void 0, void 0, void 0, functi
             });
             const reason = "Suspicious withdrawal amount or frequency detected";
             const details = `Amount: ${tx.amount} USDT, Recent withdrawals in last 24h: ${recentWithdrawalsCount}, Flagged by admin: ${admin.email}`;
-            // Send fraud alert emails to admins and superAdmins
             yield (0, sendMail_1.sendFraudAlertEmail)(user.email, user.username, reason, details);
             yield (0, sendMail_1.sendUserFraudNotificationEmail)(user.email, user.username, `Unusual withdrawal detected: amount ${tx.amount} USDT, recent withdrawals in 24h: ${recentWithdrawalsCount}`);
         }
-        const currentTx = yield transaction_model_1.default.findById(transactionId);
-        if (!currentTx || currentTx.status !== "pending") {
+        if (tx.status !== "pending") {
             return res.status(400).json({ message: "Transaction already processed." });
         }
         const result = yield (0, mockNowPayments_1.mockNowPaymentsWithdraw)({
@@ -189,7 +187,15 @@ const approveWithdrawal = (req, res) => __awaiter(void 0, void 0, void 0, functi
         tx.txId = result.txId;
         tx.method = "nowpayments";
         tx.processedAt = new Date();
+        // Optional: Add approval note
+        tx.note = `Approved by admin ${admin.email}`;
         yield tx.save();
+        mockBlockchainEmitter_1.default.emit("withdrawalConfirmed", {
+            userId: user._id.toString(),
+            amount: tx.amount,
+            txId: result.txId,
+            timestamp: new Date(),
+        });
         yield (0, sendMail_1.sendWithdrawalStatusEmail)(user.email, "approved", tx.amount);
         yield (0, sendMail_1.sendWithdrawalApprovedEmail)({
             to: user.email,
@@ -202,7 +208,7 @@ const approveWithdrawal = (req, res) => __awaiter(void 0, void 0, void 0, functi
             admin: admin._id,
             action: "approve_withdrawal",
             target: user._id,
-            metadata: { txId: transactionId, amount: tx.amount },
+            metadata: { txId: transactionId, amount: tx.amount, method: "nowpayments" },
         });
         yield securityLog_model_1.default.create({
             user: user._id,
@@ -214,44 +220,39 @@ const approveWithdrawal = (req, res) => __awaiter(void 0, void 0, void 0, functi
         });
         return res.status(200).json({ message: "Withdrawal approved and processed.", txId: result.txId });
     }
-    else {
-        tx.status = "failed";
-        tx.note = note || "Rejected by admin";
-        tx.processedAt = new Date();
-        yield tx.save();
-        yield (0, sendMail_1.sendWithdrawalStatusEmail)(user.email, "rejected", tx.amount);
-        yield adminActivityLog_model_1.default.create({
-            admin: admin._id,
-            action: "reject_withdrawal",
-            target: user._id,
-            metadata: { txId: transactionId, amount: tx.amount, note: note || "Rejected by admin" },
-        });
-        yield securityLog_model_1.default.create({
-            user: user._id,
-            action: "withdrawal_rejected",
-            status: "failure",
-            ipAddress: req.ip,
-            userAgent: req.get("User-Agent"),
-            details: `Rejected by admin ${admin._id}. Amount: ${tx.amount}, Reason: ${note || "Admin rejected"}`,
-        });
-        const recentRejected = yield transaction_model_1.default.countDocuments({
-            user: user._id,
-            type: "withdrawal",
-            status: "failed",
-            createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
-        });
-        const flagged = recentRejected >= FLAG_THRESHOLD_COUNT || tx.amount >= FLAG_THRESHOLD_AMOUNT;
-        if (flagged) {
-            user.flaggedForReview = true;
-            yield user.save();
-            yield (0, sendMail_1.sendFraudAlertEmail)(user.email, // flaggedUserEmail
-            user.username, // flaggedUsername
-            "Multiple failed withdrawal attempts or suspicious amount", // reason
-            `Attempts: ${recentRejected}, Amount: ${tx.amount}, Flagged By: ${admin.email}` // details string
-            );
-        }
-        return res.status(200).json({ message: "Withdrawal rejected." });
+    // ---- REJECTION FLOW ----
+    tx.status = "failed";
+    tx.note = note || "Rejected by admin";
+    tx.processedAt = new Date();
+    yield tx.save();
+    yield (0, sendMail_1.sendWithdrawalStatusEmail)(user.email, "rejected", tx.amount);
+    yield adminActivityLog_model_1.default.create({
+        admin: admin._id,
+        action: "reject_withdrawal",
+        target: user._id,
+        metadata: { txId: transactionId, amount: tx.amount, note: tx.note },
+    });
+    yield securityLog_model_1.default.create({
+        user: user._id,
+        action: "withdrawal_rejected",
+        status: "failure",
+        ipAddress: req.ip,
+        userAgent: req.get("User-Agent"),
+        details: `Rejected by admin ${admin._id}. Amount: ${tx.amount}, Reason: ${tx.note}`,
+    });
+    const recentRejected = yield transaction_model_1.default.countDocuments({
+        user: user._id,
+        type: "withdrawal",
+        status: "failed",
+        createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
+    });
+    const flagged = recentRejected >= FLAG_THRESHOLD_COUNT || tx.amount >= FLAG_THRESHOLD_AMOUNT;
+    if (flagged) {
+        user.flaggedForReview = true;
+        yield user.save();
+        yield (0, sendMail_1.sendFraudAlertEmail)(user.email, user.username, "Multiple failed withdrawal attempts or suspicious amount", `Attempts: ${recentRejected}, Amount: ${tx.amount}, Flagged By: ${admin.email}`);
     }
+    return res.status(200).json({ message: "Withdrawal rejected." });
 });
 exports.approveWithdrawal = approveWithdrawal;
 const getAllTransactions = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
@@ -401,3 +402,30 @@ const adminLogout = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
     }
 });
 exports.adminLogout = adminLogout;
+const declareWeeklyProfit = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { weekNumber, profitAmount, startDate, endDate } = req.body;
+        if (!weekNumber || !profitAmount || !startDate || !endDate) {
+            return res.status(400).json({ success: false, message: "All fields are required." });
+        }
+        const existing = yield weeklyProfit_model_1.default.findOne({ weekNumber });
+        if (existing) {
+            return res.status(409).json({ success: false, message: "Profit already declared for this week." });
+        }
+        yield weeklyProfit_model_1.default.create({
+            weekNumber,
+            profitAmount,
+            startDate,
+            endDate,
+        });
+        return res.status(201).json({
+            success: true,
+            message: `Weekly profit for week ${weekNumber} declared successfully.`,
+        });
+    }
+    catch (error) {
+        console.error("Error declaring weekly profit:", error);
+        res.status(500).json({ success: false, message: "Internal server error" });
+    }
+});
+exports.declareWeeklyProfit = declareWeeklyProfit;
