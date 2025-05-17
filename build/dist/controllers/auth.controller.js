@@ -308,7 +308,6 @@ const login = (req, res, next) => __awaiter(void 0, void 0, void 0, function* ()
             username: user.username,
             role: user.role,
             twoFAEnabled: user.twoFAEnabled,
-            twoFASecret: user.twoFASecret,
             createdAt: user.createdAt,
             updatedAt: user.updatedAt,
         };

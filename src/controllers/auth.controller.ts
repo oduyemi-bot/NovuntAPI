@@ -378,7 +378,6 @@ export const login = async (req: Request, res: Response, next: NextFunction): Pr
             username: user.username,
             role: user.role,
             twoFAEnabled: user.twoFAEnabled,
-            twoFASecret: user.twoFASecret,
             createdAt: user.createdAt,
             updatedAt: user.updatedAt,
         };
