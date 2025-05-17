@@ -339,8 +339,8 @@ const updatePassword = (req, res) => __awaiter(void 0, void 0, void 0, function*
     var _a;
     try {
         const userId = (_a = req.user) === null || _a === void 0 ? void 0 : _a._id;
-        const { oldPassword, newPassword, confirmNewPassword } = req.body;
-        if (!oldPassword || !newPassword || !confirmNewPassword) {
+        const { currentPassword, newPassword, confirmNewPassword } = req.body;
+        if (!currentPassword || !newPassword || !confirmNewPassword) {
             res.status(400).json({ message: "All password fields are required" });
             return;
         }
@@ -360,7 +360,7 @@ const updatePassword = (req, res) => __awaiter(void 0, void 0, void 0, function*
             res.status(404).json({ message: "User not found" });
             return;
         }
-        const isMatch = yield bcryptjs_1.default.compare(oldPassword, user.password);
+        const isMatch = yield bcryptjs_1.default.compare(currentPassword, user.password);
         if (!isMatch) {
             res.status(401).json({ message: "Old password is incorrect" });
             return;

@@ -18,11 +18,11 @@ const router = express.Router();
 router.get("/", getAllUsers);
 router.get("/admin", getAllAdmin);
 router.get("/user/:id", getUserById);
-router.put("/users/:id/profile-picture", authenticateUser, updateProfilePicture);
+router.patch("/user/:id/profile-picture", authenticateUser, updateProfilePicture);
 router.get("/admin/:id", getAdminById);
-router.put("/:id", authenticateUser, require2FA, checkAdmin, updateUser);
-router.put("/:id/role/admin", authenticateUser, checkAdmin, promoteToAdmin);
-router.put("/:id/role/user", authenticateUser, checkSuperAdmin, demoteToUser);
-router.delete("/:id", authenticateUser, checkAdmin, deleteUser);
+router.patch("/:id", authenticateUser, require2FA, checkAdmin, updateUser);
+router.patch("/:id/role/admin", authenticateUser, checkAdmin, promoteToAdmin);
+router.patch("/:id/role/user", authenticateUser, checkSuperAdmin, demoteToUser);
+router.post("/:id", authenticateUser, checkAdmin, deleteUser);
 
 export default router;

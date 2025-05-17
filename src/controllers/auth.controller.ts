@@ -410,9 +410,9 @@ export const login = async (req: Request, res: Response, next: NextFunction): Pr
 export const updatePassword = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?._id;
-    const { oldPassword, newPassword, confirmNewPassword } = req.body;
+    const { currentPassword, newPassword, confirmNewPassword } = req.body;
 
-    if (!oldPassword || !newPassword || !confirmNewPassword) {
+    if (!currentPassword || !newPassword || !confirmNewPassword) {
       res.status(400).json({ message: "All password fields are required" });
       return;
     }
@@ -437,7 +437,7 @@ export const updatePassword = async (req: AuthenticatedRequest, res: Response): 
       return;
     }
 
-    const isMatch = await bcrypt.compare(oldPassword, user.password);
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
     if (!isMatch) {
       res.status(401).json({ message: "Old password is incorrect" });
       return;

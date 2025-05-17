@@ -117,11 +117,6 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
     }
 };
 
-// Update user password 
-
-
-
-
 export const updateProfilePicture = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?._id; 

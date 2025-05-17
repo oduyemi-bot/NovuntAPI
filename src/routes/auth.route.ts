@@ -18,11 +18,9 @@ router.post(
   validateLogin,
   login
 );
-router.put("/password/update", authenticateUser, updatePassword);
-router.post("/password/reset/request", sendResetPasswordOTP);
-router.post("/password/reset", resetPassword);
-
-
+router.patch("/password", authenticateUser, updatePassword);
+router.post("/reset-password/request", sendResetPasswordOTP);
+router.post("/reset-password", resetPassword);
 router.post('/auth/generate-2fa-secret', generate2FASecret);
 router.post('/auth/enable-2fa', enable2FA);
 router.post('/auth/verify-2fa', verify2FA);

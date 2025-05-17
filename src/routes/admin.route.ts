@@ -19,24 +19,26 @@ const router = express.Router();
 
 router.post("/login", adminLogin);
 router.post("/logout", authenticateUser, checkAdmin, adminLogout);
-router.get("/user/:userId", authenticateUser, checkAdmin, getStakesByUserId);
+router.patch("/password", authenticateUser, checkAdmin, updateAdminPassword);
+
 
 // Admin profile routes
 router.get("/profile", authenticateUser, checkAdmin, getAdminProfile);
 router.patch("/profile/picture", authenticateUser, checkAdmin, updateAdminProfilePicture);
-router.patch("/profile/password", authenticateUser, checkAdmin, updateAdminPassword);
 
 // Withdrawal approval routes
-router.patch("/withdrawal/:transactionId", authenticateUser, checkAdmin, approveWithdrawal);
-router.put("/withdrawals/approve/:transactionId", authenticateUser, checkAdmin, require2FA, approveWithdrawal);
+router.patch("/withdrawal/:transactionId", authenticateUser, checkAdmin, require2FA, approveWithdrawal);
 
-// Other admin routes
-router.get("/transactions", authenticateUser, checkAdmin, getAllTransactions);
+// User management routes
+router.get("/user/:userId", authenticateUser, checkAdmin, getStakesByUserId);
 router.get("/users-balances", authenticateUser, checkAdmin, getAllUsersWithBalances);
 router.get("/flagged-activities", authenticateUser, checkAdmin, getFlaggedActivities);
 router.get("/activity-logs", authenticateUser, checkSuperAdmin, getAdminActivityLogs);
 
+// Transaction management routes
+router.get("/transactions", authenticateUser, checkAdmin, getAllTransactions);
+
 // KYC review route
-router.patch("/kyc/:kycId/review", authenticateUser, checkAdmin, reviewKYCSubmission);
+router.patch("/kyc/review/:kycId", authenticateUser, checkAdmin, reviewKYCSubmission);
 
 export default router;
