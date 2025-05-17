@@ -12,9 +12,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getFlaggedActivities = exports.getAllUsersWithBalances = exports.getAllTransactions = exports.approveWithdrawal = exports.adminLogin = void 0;
+exports.getAdminActivityLogs = exports.getFlaggedActivities = exports.getAllUsersWithBalances = exports.getAllTransactions = exports.approveWithdrawal = exports.adminLogin = void 0;
 const userWallet_model_1 = __importDefault(require("../models/userWallet.model"));
 const transaction_model_1 = __importDefault(require("../models/transaction.model"));
+const adminActivityLog_model_1 = __importDefault(require("../models/adminActivityLog.model"));
 const mockNowPayments_1 = require("../utils/mockNowPayments");
 const sendMail_1 = require("../utils/sendMail");
 const user_model_1 = __importDefault(require("../models/user.model"));
@@ -60,6 +61,9 @@ exports.adminLogin = adminLogin;
 const approveWithdrawal = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { transactionId } = req.params;
     const { action } = req.body; // "approve" or "reject"
+    const admin = req.user;
+    if (!admin)
+        return res.status(401).json({ message: "Unauthorized" });
     if (!["approve", "reject"].includes(action)) {
         return res.status(400).json({ message: "Invalid action. Use 'approve' or 'reject'." });
     }
@@ -96,6 +100,12 @@ const approveWithdrawal = (req, res) => __awaiter(void 0, void 0, void 0, functi
         tx.processedAt = new Date();
         yield tx.save();
         yield (0, sendMail_1.sendWithdrawalStatusEmail)(user.email, "approved", tx.amount);
+        yield adminActivityLog_model_1.default.create({
+            admin: admin._id,
+            action: "approve_withdrawal",
+            target: user._id,
+            metadata: { txId: transactionId, amount: tx.amount },
+        });
         return res.status(200).json({ message: "Withdrawal approved and processed.", txId: result.txId });
     }
     else {
@@ -104,6 +114,12 @@ const approveWithdrawal = (req, res) => __awaiter(void 0, void 0, void 0, functi
         tx.processedAt = new Date();
         yield tx.save();
         yield (0, sendMail_1.sendWithdrawalStatusEmail)(user.email, "rejected", tx.amount);
+        yield adminActivityLog_model_1.default.create({
+            admin: admin._id,
+            action: "reject_withdrawal",
+            target: user._id,
+            metadata: { txId: transactionId, amount: tx.amount },
+        });
         return res.status(200).json({ message: "Withdrawal rejected." });
     }
 });
@@ -155,3 +171,17 @@ const getFlaggedActivities = (_req, res) => __awaiter(void 0, void 0, void 0, fu
     }
 });
 exports.getFlaggedActivities = getFlaggedActivities;
+const getAdminActivityLogs = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const admin = req.user;
+    if (!admin || admin.role !== "superAdmin") {
+        return res.status(403).json({ message: "Forbidden. Only super administrators can view logs." });
+    }
+    try {
+        const logs = yield adminActivityLog_model_1.default.find().populate("admin").sort({ createdAt: -1 });
+        res.status(200).json(logs);
+    }
+    catch (error) {
+        res.status(500).json({ message: "Error fetching admin activity logs.", error });
+    }
+});
+exports.getAdminActivityLogs = getAdminActivityLogs;

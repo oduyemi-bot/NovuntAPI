@@ -1,8 +1,10 @@
 import { Request, Response } from "express";
 import UserWallet from "../models/userWallet.model";
 import Transaction from "../models/transaction.model";
+import AdminActivityLog from "../models/adminActivityLog.model";
 import { mockNowPaymentsWithdraw } from "../utils/mockNowPayments";
 import { sendWithdrawalStatusEmail } from "../utils/sendMail";
+import { AuthenticatedRequest } from "../middlewares/auth.middleware";
 import User from "../models/user.model";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
@@ -52,10 +54,12 @@ export const adminLogin = async (req: Request, res: Response) => {
   }
 };
 
-
-export const approveWithdrawal = async (req: Request, res: Response) => {
+export const approveWithdrawal = async (req: AuthenticatedRequest, res: Response) => {
   const { transactionId } = req.params;
   const { action } = req.body; // "approve" or "reject"
+  const admin = req.user;
+
+  if (!admin) return res.status(401).json({ message: "Unauthorized" });
 
   if (!["approve", "reject"].includes(action)) {
     return res.status(400).json({ message: "Invalid action. Use 'approve' or 'reject'." });
@@ -103,6 +107,13 @@ export const approveWithdrawal = async (req: Request, res: Response) => {
 
     await sendWithdrawalStatusEmail(user.email, "approved", tx.amount);
 
+    await AdminActivityLog.create({
+      admin: admin._id,
+      action: "approve_withdrawal",
+      target: user._id,
+      metadata: { txId: transactionId, amount: tx.amount },
+    });
+
     return res.status(200).json({ message: "Withdrawal approved and processed.", txId: result.txId });
   } else {
     tx.status = "failed";
@@ -111,6 +122,13 @@ export const approveWithdrawal = async (req: Request, res: Response) => {
     await tx.save();
 
     await sendWithdrawalStatusEmail(user.email, "rejected", tx.amount);
+
+    await AdminActivityLog.create({
+      admin: admin._id,
+      action: "reject_withdrawal",
+      target: user._id,
+      metadata: { txId: transactionId, amount: tx.amount },
+    });
 
     return res.status(200).json({ message: "Withdrawal rejected." });
   }
@@ -159,5 +177,19 @@ export const getFlaggedActivities = async (_req: Request, res: Response) => {
     res.status(200).json(flagged);
   } catch (error) {
     res.status(500).json({ message: "Error fetching flagged activities.", error });
+  }
+};
+
+export const getAdminActivityLogs = async (req: AuthenticatedRequest, res: Response) => {
+  const admin = req.user;
+  if (!admin || admin.role !== "superAdmin") {
+    return res.status(403).json({ message: "Forbidden. Only super administrators can view logs." });
+  }
+
+  try {
+    const logs = await AdminActivityLog.find().populate("admin").sort({ createdAt: -1 });
+    res.status(200).json(logs);
+  } catch (error) {
+    res.status(500).json({ message: "Error fetching admin activity logs.", error });
   }
 };
