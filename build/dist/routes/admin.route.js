@@ -17,6 +17,8 @@ router.patch("/profile/picture", auth_middleware_1.authenticateUser, auth_middle
 // Withdrawal approval routes
 router.patch("/withdrawal/:transactionId", auth_middleware_1.authenticateUser, auth_middleware_1.checkAdmin, auth_middleware_1.require2FA, admin_controller_1.approveWithdrawal);
 // User management routes
+router.post("/create-admin", auth_middleware_1.authenticateUser, auth_middleware_1.checkSuperAdmin, admin_controller_1.createAdmin);
+router.post("/create-super-admin", auth_middleware_1.authenticateUser, auth_middleware_1.checkSuperAdmin, admin_controller_1.createSuperAdmin);
 router.get("/user/:userId", auth_middleware_1.authenticateUser, auth_middleware_1.checkAdmin, transaction_controller_1.getStakesByUserId);
 router.get("/users-balances", auth_middleware_1.authenticateUser, auth_middleware_1.checkAdmin, admin_controller_1.getAllUsersWithBalances);
 router.get("/flagged-activities", auth_middleware_1.authenticateUser, auth_middleware_1.checkAdmin, admin_controller_1.getFlaggedActivities);

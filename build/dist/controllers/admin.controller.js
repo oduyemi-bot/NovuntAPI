@@ -12,21 +12,23 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.declareWeeklyProfit = exports.adminLogout = exports.reviewKYCSubmission = exports.getAdminActivityLogs = exports.getFlaggedActivities = exports.getAllUsersWithBalances = exports.getAllTransactions = exports.approveWithdrawal = exports.getAdminProfile = exports.updateAdminPassword = exports.updateAdminProfilePicture = exports.adminLogin = void 0;
+exports.createSuperAdmin = exports.createAdmin = exports.declareWeeklyProfit = exports.adminLogout = exports.reviewKYCSubmission = exports.getAdminActivityLogs = exports.getFlaggedActivities = exports.getAllUsersWithBalances = exports.getAllTransactions = exports.approveWithdrawal = exports.getAdminProfile = exports.updateAdminPassword = exports.updateAdminProfilePicture = exports.adminLogin = void 0;
 const userWallet_model_1 = __importDefault(require("../models/userWallet.model"));
 const transaction_model_1 = __importDefault(require("../models/transaction.model"));
 const adminActivityLog_model_1 = __importDefault(require("../models/adminActivityLog.model"));
 const weeklyProfit_model_1 = __importDefault(require("../models/weeklyProfit.model"));
 const kycSubmission_model_1 = __importDefault(require("../models/kycSubmission.model"));
 const securityLog_model_1 = __importDefault(require("../models/securityLog.model"));
-const mockNowPayments_1 = require("../utils/mockNowPayments");
 const sendMail_1 = require("../utils/sendMail");
+const mockNowPayments_1 = require("../utils/mockNowPayments");
+const sendMail_2 = require("../utils/sendMail");
 const user_model_1 = __importDefault(require("../models/user.model"));
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const logger_1 = require("../utils/logger");
 const mockBlockchainEmitter_1 = __importDefault(require("../utils/mockBlockchainEmitter"));
+const axios_1 = __importDefault(require("axios"));
 const WITHDRAWAL_FEE_PERCENTAGE = 3; // 3%
 const FLAG_THRESHOLD_COUNT = 5;
 const FLAG_THRESHOLD_AMOUNT = 1000;
@@ -166,8 +168,8 @@ const approveWithdrawal = (req, res) => __awaiter(void 0, void 0, void 0, functi
             });
             const reason = "Suspicious withdrawal amount or frequency detected";
             const details = `Amount: ${tx.amount} USDT, Recent withdrawals in last 24h: ${recentWithdrawalsCount}, Flagged by admin: ${admin.email}`;
-            yield (0, sendMail_1.sendFraudAlertEmail)(user.email, user.username, reason, details);
-            yield (0, sendMail_1.sendUserFraudNotificationEmail)(user.email, user.username, `Unusual withdrawal detected: amount ${tx.amount} USDT, recent withdrawals in 24h: ${recentWithdrawalsCount}`);
+            yield (0, sendMail_2.sendFraudAlertEmail)(user.email, user.username, reason, details);
+            yield (0, sendMail_2.sendUserFraudNotificationEmail)(user.email, user.username, `Unusual withdrawal detected: amount ${tx.amount} USDT, recent withdrawals in 24h: ${recentWithdrawalsCount}`);
         }
         if (tx.status !== "pending") {
             return res.status(400).json({ message: "Transaction already processed." });
@@ -196,8 +198,8 @@ const approveWithdrawal = (req, res) => __awaiter(void 0, void 0, void 0, functi
             txId: result.txId,
             timestamp: new Date(),
         });
-        yield (0, sendMail_1.sendWithdrawalStatusEmail)(user.email, "approved", tx.amount);
-        yield (0, sendMail_1.sendWithdrawalApprovedEmail)({
+        yield (0, sendMail_2.sendWithdrawalStatusEmail)(user.email, "approved", tx.amount);
+        yield (0, sendMail_2.sendWithdrawalApprovedEmail)({
             to: user.email,
             name: user.username,
             amount: tx.amount,
@@ -225,7 +227,7 @@ const approveWithdrawal = (req, res) => __awaiter(void 0, void 0, void 0, functi
     tx.note = note || "Rejected by admin";
     tx.processedAt = new Date();
     yield tx.save();
-    yield (0, sendMail_1.sendWithdrawalStatusEmail)(user.email, "rejected", tx.amount);
+    yield (0, sendMail_2.sendWithdrawalStatusEmail)(user.email, "rejected", tx.amount);
     yield adminActivityLog_model_1.default.create({
         admin: admin._id,
         action: "reject_withdrawal",
@@ -250,7 +252,7 @@ const approveWithdrawal = (req, res) => __awaiter(void 0, void 0, void 0, functi
     if (flagged) {
         user.flaggedForReview = true;
         yield user.save();
-        yield (0, sendMail_1.sendFraudAlertEmail)(user.email, user.username, "Multiple failed withdrawal attempts or suspicious amount", `Attempts: ${recentRejected}, Amount: ${tx.amount}, Flagged By: ${admin.email}`);
+        yield (0, sendMail_2.sendFraudAlertEmail)(user.email, user.username, "Multiple failed withdrawal attempts or suspicious amount", `Attempts: ${recentRejected}, Amount: ${tx.amount}, Flagged By: ${admin.email}`);
     }
     return res.status(200).json({ message: "Withdrawal rejected." });
 });
@@ -418,9 +420,17 @@ const declareWeeklyProfit = (req, res) => __awaiter(void 0, void 0, void 0, func
             startDate,
             endDate,
         });
+        // Trigger bonus ranking and redistribution
+        try {
+            yield axios_1.default.post("https://novunt.vercel.app/api/v1/bonus/ranking");
+            yield axios_1.default.post("https://novunt.vercel.app/api/v1/bonus/redistribution");
+        }
+        catch (bonusError) {
+            console.error("Bonus trigger failed:", bonusError);
+        }
         return res.status(201).json({
             success: true,
-            message: `Weekly profit for week ${weekNumber} declared successfully.`,
+            message: `Weekly profit for week ${weekNumber} declared successfully. Bonus triggers initiated.`,
         });
     }
     catch (error) {
@@ -429,3 +439,77 @@ const declareWeeklyProfit = (req, res) => __awaiter(void 0, void 0, void 0, func
     }
 });
 exports.declareWeeklyProfit = declareWeeklyProfit;
+const createAdmin = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { fname, lname, email, username, password } = req.body;
+        if (!fname || !lname || !email || !username || !password) {
+            return res.status(400).json({ message: "All fields are required." });
+        }
+        const existingUser = yield user_model_1.default.findOne({
+            $or: [{ email }, { username }],
+        });
+        if (existingUser) {
+            return res.status(409).json({ message: "Email or username already exists." });
+        }
+        const hashedPassword = yield bcryptjs_1.default.hash(password, 10);
+        const newUser = yield user_model_1.default.create({
+            fname,
+            lname,
+            email,
+            username,
+            password: hashedPassword,
+            role: "admin",
+        });
+        (0, logger_1.logAudit)(`Admin created: ${newUser.email}`);
+        yield (0, sendMail_1.sendAdminWelcomeEmail)(email, fname);
+        res.status(201).json({
+            message: "Admin created successfully.",
+            user: {
+                id: newUser._id,
+                email: newUser.email,
+                role: newUser.role,
+            },
+        });
+    }
+    catch (err) {
+        res.status(500).json({ message: "Failed to create admin.", error: err });
+    }
+});
+exports.createAdmin = createAdmin;
+const createSuperAdmin = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { fname, lname, email, username, password } = req.body;
+        if (!fname || !lname || !email || !username || !password) {
+            return res.status(400).json({ message: "All fields are required." });
+        }
+        const existingUser = yield user_model_1.default.findOne({
+            $or: [{ email }, { username }],
+        });
+        if (existingUser) {
+            return res.status(409).json({ message: "Email or username already exists." });
+        }
+        const hashedPassword = yield bcryptjs_1.default.hash(password, 10);
+        const newUser = yield user_model_1.default.create({
+            fname,
+            lname,
+            email,
+            username,
+            password: hashedPassword,
+            role: "superAdmin",
+        });
+        (0, logger_1.logAudit)(`SuperAdmin created: ${newUser.email}`);
+        yield (0, sendMail_1.sendSuperAdminWelcomeEmail)(email, fname);
+        res.status(201).json({
+            message: "SuperAdmin created successfully.",
+            user: {
+                id: newUser._id,
+                email: newUser.email,
+                role: newUser.role,
+            },
+        });
+    }
+    catch (err) {
+        res.status(500).json({ message: "Failed to create super admin.", error: err });
+    }
+});
+exports.createSuperAdmin = createSuperAdmin;

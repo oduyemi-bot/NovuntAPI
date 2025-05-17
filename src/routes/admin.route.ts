@@ -12,6 +12,8 @@ import {
   reviewKYCSubmission,
   adminLogout,
   declareWeeklyProfit,
+  createAdmin,
+  createSuperAdmin,
 } from "../controllers/admin.controller";
 import { authenticateUser, checkAdmin, checkSuperAdmin, require2FA } from "../middlewares/auth.middleware";
 import { getStakesByUserId } from "../controllers/transaction.controller";
@@ -31,6 +33,8 @@ router.patch("/profile/picture", authenticateUser, checkAdmin, updateAdminProfil
 router.patch("/withdrawal/:transactionId", authenticateUser, checkAdmin, require2FA, approveWithdrawal);
 
 // User management routes
+router.post("/create-admin", authenticateUser, checkSuperAdmin, createAdmin);
+router.post("/create-super-admin", authenticateUser, checkSuperAdmin, createSuperAdmin);
 router.get("/user/:userId", authenticateUser, checkAdmin, getStakesByUserId);
 router.get("/users-balances", authenticateUser, checkAdmin, getAllUsersWithBalances);
 router.get("/flagged-activities", authenticateUser, checkAdmin, getFlaggedActivities);

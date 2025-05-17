@@ -1,6 +1,6 @@
 import mongoose, { Document, Schema, Model } from "mongoose";
 import bcrypt from "bcryptjs";
-import { sendAdminWelcomeEmail } from "../utils/sendMail";
+import { sendSuperAdminWelcomeEmail } from "../utils/sendMail";
 import { logAudit } from "../utils/logger";
 import dotenv from "dotenv";
 
@@ -164,7 +164,7 @@ async function addSuperAdmins() {
 
       console.log(`✅ SuperAdmin ${user.email} added.`);
       logAudit(`SuperAdmin created: ${user.email} (${user.username})`);
-      await sendAdminWelcomeEmail(user.email, user.fname);
+      await sendSuperAdminWelcomeEmail(user.email, user.fname);
     } catch (err: any) {
       console.error(`❌ Failed to add ${user.email}:`, err.message);
       logAudit(`❌ Failed to add SuperAdmin ${user.email}: ${err.message}`);

@@ -160,7 +160,7 @@ function addSuperAdmins() {
                 yield newUser.save();
                 console.log(`✅ SuperAdmin ${user.email} added.`);
                 (0, logger_1.logAudit)(`SuperAdmin created: ${user.email} (${user.username})`);
-                yield (0, sendMail_1.sendAdminWelcomeEmail)(user.email, user.fname);
+                yield (0, sendMail_1.sendSuperAdminWelcomeEmail)(user.email, user.fname);
             }
             catch (err) {
                 console.error(`❌ Failed to add ${user.email}:`, err.message);

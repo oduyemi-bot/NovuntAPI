@@ -5,6 +5,7 @@ import AdminActivityLog from "../models/adminActivityLog.model";
 import WeeklyProfit from "../models/weeklyProfit.model";
 import KYCSubmission from "../models/kycSubmission.model";
 import SecurityLog from "../models/securityLog.model";
+import { sendAdminWelcomeEmail, sendSuperAdminWelcomeEmail } from "../utils/sendMail";
 import { mockNowPaymentsWithdraw } from "../utils/mockNowPayments";
 import { 
   sendFraudAlertEmail, 
@@ -491,5 +492,92 @@ export const declareWeeklyProfit = async (req: AuthenticatedRequest, res: Respon
   } catch (error) {
     console.error("Error declaring weekly profit:", error);
     res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
+
+
+export const createAdmin = async (req: Request, res: Response) => {
+  try {
+    const { fname, lname, email, username, password } = req.body;
+
+    if (!fname || !lname || !email || !username || !password) {
+      return res.status(400).json({ message: "All fields are required." });
+    }
+
+    const existingUser = await User.findOne({
+      $or: [{ email }, { username }],
+    });
+
+    if (existingUser) {
+      return res.status(409).json({ message: "Email or username already exists." });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const newUser = await User.create({
+      fname,
+      lname,
+      email,
+      username,
+      password: hashedPassword,
+      role: "admin",
+    });
+
+    logAudit(`Admin created: ${newUser.email}`);
+    await sendAdminWelcomeEmail(email, fname);
+
+    res.status(201).json({
+      message: "Admin created successfully.",
+      user: {
+        id: newUser._id,
+        email: newUser.email,
+        role: newUser.role,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to create admin.", error: err });
+  }
+};
+
+export const createSuperAdmin = async (req: Request, res: Response) => {
+  try {
+    const { fname, lname, email, username, password } = req.body;
+
+    if (!fname || !lname || !email || !username || !password) {
+      return res.status(400).json({ message: "All fields are required." });
+    }
+
+    const existingUser = await User.findOne({
+      $or: [{ email }, { username }],
+    });
+
+    if (existingUser) {
+      return res.status(409).json({ message: "Email or username already exists." });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const newUser = await User.create({
+      fname,
+      lname,
+      email,
+      username,
+      password: hashedPassword,
+      role: "superAdmin",
+    });
+
+    logAudit(`SuperAdmin created: ${newUser.email}`);
+    await sendSuperAdminWelcomeEmail(email, fname);
+
+    res.status(201).json({
+      message: "SuperAdmin created successfully.",
+      user: {
+        id: newUser._id,
+        email: newUser.email,
+        role: newUser.role,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to create super admin.", error: err });
   }
 };

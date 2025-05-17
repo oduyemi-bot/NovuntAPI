@@ -14,6 +14,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.sendUserFraudNotificationEmail = exports.sendFraudAlertEmail = exports.sendDepletionWarningEmail = exports.sendWithdrawalStatusEmail = exports.sendWithdrawalApprovedEmail = exports.sendWithdrawalRequestEmail = exports.sendResetPasswordEmail = exports.sendVerificationTOTP = void 0;
 exports.sendAdminWelcomeEmail = sendAdminWelcomeEmail;
+exports.sendSuperAdminWelcomeEmail = sendSuperAdminWelcomeEmail;
 const speakeasy_1 = __importDefault(require("speakeasy"));
 const transporter_1 = require("./transporter");
 const tempUser_model_1 = __importDefault(require("../models/tempUser.model"));
@@ -26,8 +27,25 @@ function sendAdminWelcomeEmail(email, name) {
             subject: "Welcome, Super Admin!",
             html: `
       <p>Hi ${name},</p>
+      <p>You’ve been added as an <strong>admin</strong> to the platform.</p>
+      <p>You can now log in and start managing the system.</p>
+      <p>It is recommended that you change your password once you are in.</p>
+    `,
+        };
+        return transporter_1.transporter.sendMail(mailOptions);
+    });
+}
+function sendSuperAdminWelcomeEmail(email, name) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const mailOptions = {
+            from: `"Novunt Support" <${process.env.MAIL_USER}>`,
+            to: email,
+            subject: "Welcome, Super Admin!",
+            html: `
+      <p>Hi ${name},</p>
       <p>You’ve been added as a <strong>super admin</strong> to the platform.</p>
       <p>You can now log in and start managing the system.</p>
+      <p>It is recommended that you change your password once you are in.</p>
     `,
         };
         return transporter_1.transporter.sendMail(mailOptions);

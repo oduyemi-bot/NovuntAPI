@@ -11,7 +11,24 @@ interface WithdrawalNotificationParams {
   txId: string;
 }
 
+
 export async function sendAdminWelcomeEmail(email: string, name: string) {
+  const mailOptions = {
+    from: `"Novunt Support" <${process.env.MAIL_USER}>`,
+    to: email,
+    subject: "Welcome, Super Admin!",
+    html: `
+      <p>Hi ${name},</p>
+      <p>You’ve been added as an <strong>admin</strong> to the platform.</p>
+      <p>You can now log in and start managing the system.</p>
+      <p>It is recommended that you change your password once you are in.</p>
+    `,
+  };
+
+  return transporter.sendMail(mailOptions);
+}
+
+export async function sendSuperAdminWelcomeEmail(email: string, name: string) {
   const mailOptions = {
     from: `"Novunt Support" <${process.env.MAIL_USER}>`,
     to: email,
@@ -20,6 +37,7 @@ export async function sendAdminWelcomeEmail(email: string, name: string) {
       <p>Hi ${name},</p>
       <p>You’ve been added as a <strong>super admin</strong> to the platform.</p>
       <p>You can now log in and start managing the system.</p>
+      <p>It is recommended that you change your password once you are in.</p>
     `,
   };
 
