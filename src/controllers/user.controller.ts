@@ -117,6 +117,37 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
     }
 };
 
+// Update user password 
+
+
+
+
+export const updateProfilePicture = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?._id; 
+    const { profilePicture } = req.body;
+
+    if (!profilePicture || typeof profilePicture !== "string") {
+      res.status(400).json({ message: "profilePicture URL is required and must be a string" });
+      return;
+    }
+
+    const user = await User.findById(userId);
+    if (!user || !user.isActive) {
+      res.status(404).json({ message: "User not found or inactive" });
+      return;
+    }
+
+    user.profilePicture = profilePicture;
+    await user.save();
+
+    res.status(200).json({ message: "Profile picture updated successfully", profilePicture: user.profilePicture });
+  } catch (error: any) {
+    console.error("Error updating profile picture:", error);
+    res.status(500).json({ message: "Error updating profile picture", error: error.message });
+  }
+};
+
 
 // Deactivate user
 export const deleteUser = async (req: AuthenticatedRequest, res: Response): Promise<void> => {

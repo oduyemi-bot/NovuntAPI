@@ -7,11 +7,11 @@ import qrcode from "qrcode";
 import User, { IUser } from "../models/user.model";
 import TempUser from "../models/tempUser.model";
 import UserWallet from "../models/userWallet.model";
-import { sendVerificationTOTP } from "../utils/sendMail";
+import { sendVerificationTOTP, sendResetPasswordEmail } from "../utils/sendMail";
 import dotenv from "dotenv";
 import { mockGenerateWalletAddress } from "../utils/mockNowPayments";
 import { logSecurityEvent } from "../utils/logSecurityEvent";
-
+import { AuthenticatedRequest } from "../middlewares/auth.middleware";
 
 dotenv.config();
 
@@ -21,6 +21,7 @@ export interface UserSession {
     lname: string;
     email: string;
     username: string;
+    profilePicture?: string;
     role: "admin" | "superAdmin" | "user";
     twoFAEnabled: boolean;
     createdAt: Date;
@@ -302,18 +303,16 @@ export const generate2FASecret = async (req: Request, res: Response): Promise<vo
   }
 
   const secret = speakeasy.generateSecret({
-    name: `YourAppName (${email})`, // shows in Google Authenticator
+    name: `Novunt App (${email})`, // shows in Google Authenticator
   });
 
   try {
     const otpauthUrl = secret.otpauth_url!;
     const qrImageUrl = await qrcode.toDataURL(otpauthUrl);
-
-    // You should store the base32 secret temporarily until the user verifies with a token
     res.status(200).json({
       message: "Scan QR with Google Authenticator",
       qrImageUrl,
-      secret: secret.base32, // Only send this if you're verifying manually
+      secret: secret.base32, 
     });
   } catch (err) {
     console.error("Error generating 2FA secret:", err);
@@ -358,7 +357,7 @@ export const login = async (req: Request, res: Response, next: NextFunction): Pr
           await logSecurityEvent({
             user: user._id,
             action: "2fa-challenge",
-            status: "success", // This just means the challenge was issued
+            status: "success",
             ipAddress: req.ip,
             userAgent: req.headers["user-agent"],
             details: "2FA challenge sent during login",
@@ -408,6 +407,140 @@ export const login = async (req: Request, res: Response, next: NextFunction): Pr
 };
 
 
+export const updatePassword = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?._id;
+    const { oldPassword, newPassword, confirmNewPassword } = req.body;
+
+    if (!oldPassword || !newPassword || !confirmNewPassword) {
+      res.status(400).json({ message: "All password fields are required" });
+      return;
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      res.status(400).json({ message: "New password and confirmation do not match" });
+      return;
+    }
+
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@_$!%*?&])[A-Za-z\d@_$!%*?&]{8,}$/;
+    if (!passwordRegex.test(newPassword)) {
+      res.status(400).json({
+        message:
+          "Password must be at least 8 characters long and include uppercase, lowercase, number, and special character.",
+      });
+      return;
+    }
+
+    const user = await User.findById(userId).select("+password");
+    if (!user) {
+      res.status(404).json({ message: "User not found" });
+      return;
+    }
+
+    const isMatch = await bcrypt.compare(oldPassword, user.password);
+    if (!isMatch) {
+      res.status(401).json({ message: "Old password is incorrect" });
+      return;
+    }
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    await user.save();
+
+    res.status(200).json({ message: "Password updated successfully" });
+  } catch (error: any) {
+    console.error("Error updating password:", error);
+    res.status(500).json({ message: "Error updating password", error: error.message });
+  }
+};
+
+
+export const sendResetPasswordOTP = async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (!user) {
+      return res.status(200).json({ message: "If the email exists, an OTP has been sent." });
+    }
+
+    const secret = process.env.JWT_SECRET || "your_jwt_secret";
+    const token = jwt.sign({ userId: user._id }, secret, { expiresIn: "15m" });
+
+    await sendResetPasswordEmail(user.email, user.fname + " " + user.lname);
+
+    return res.status(200).json({ message: "If the email exists, an OTP has been sent." });
+  } catch (error: any) {
+    console.error(error);
+    res.status(500).json({ message: "Error sending reset password OTP", error: error.message });
+  }
+};
+
+export const verifyResetToken = async (email: string, token: string) => {
+  const user = await User.findOne({ email }).select(
+    "+resetToken +resetTokenExpiration"
+  );
+
+  if (!user) {
+    throw new Error("User not found");
+  }
+
+  if (
+    user.resetToken !== token ||
+    !user.resetTokenExpiration ||
+    user.resetTokenExpiration < Date.now()
+  ) {
+    throw new Error("Invalid or expired reset token");
+  }
+
+  return true;
+};
+
+
+export const resetPassword = async (req: Request, res: Response) => {
+  try {
+    const { newPassword, confirmNewPassword, token } = req.body;
+    if (!newPassword || !confirmNewPassword || !token) {
+      return res.status(400).json({ message: "All fields are required" });
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      return res.status(400).json({ message: "Passwords do not match" });
+    }
+
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@_$!%*?&])[A-Za-z\d@_$!%*?&]{8,}$/;
+    if (!passwordRegex.test(newPassword)) {
+      return res.status(400).json({
+        message: "Password must be at least 8 characters long and include uppercase, lowercase, number, and special character.",
+      });
+    }
+
+    const secret = process.env.JWT_SECRET || "your_jwt_secret";
+    let payload: any;
+    try {
+      payload = jwt.verify(token, secret);
+    } catch {
+      return res.status(400).json({ message: "Invalid or expired token" });
+    }
+
+    const user = await User.findById(payload.userId).select("+password");
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    await user.save();
+
+    // Optional: send confirmation email or audit log here
+
+    return res.status(200).json({ message: "Password reset successfully" });
+  } catch (error: any) {
+    console.error(error);
+    res.status(500).json({ message: "Error resetting password", error: error.message });
+  }
+};
 
 export const logout = (req: Request, res: Response) => {
     const userID = req.params.userID;

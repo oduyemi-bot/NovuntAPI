@@ -7,7 +7,7 @@ interface WithdrawalNotificationParams {
   to: string;
   name: string;
   amount: number;
-  address: string;
+  address: unknown;
   txId: string;
 }
 
@@ -65,6 +65,47 @@ export const sendVerificationTOTP = async (email: string, name: string) => {
   };
 };
 
+
+export const sendResetPasswordEmail = async (email: string, name: string) => {
+  // Generate secret and TOTP token (valid for 15 minutes)
+  const secret = speakeasy.generateSecret();
+  const token = speakeasy.totp({
+    secret: secret.base32,
+    encoding: "base32",
+    step: 900, // 15 minutes validity
+  });
+
+  const expirationTime = Date.now() + 900 * 1000; // 15 minutes from now
+  await User.findOneAndUpdate(
+    { email },
+    {
+      resetSecret: secret.base32,
+      resetToken: token,
+      resetTokenExpiration: expirationTime,
+    },
+    { upsert: true, new: true }
+  );
+
+  const mailOptions = {
+    from: `"Novunt" <${process.env.MAIL_USER}>`,
+    to: email,
+    subject: "Your Password Reset Code",
+    html: `
+      <p>Hello <b>${name}</b>,</p>
+      <p>Your password reset code is:</p>
+      <h2>${token}</h2>
+      <p>This code will expire in 15 minutes.</p>
+      <p>If you did not request this, please ignore this email.</p>
+    `,
+  };
+
+  // Send the email
+  await transporter.sendMail(mailOptions);
+
+  return {
+    secret: secret.base32,
+  };
+};
 
 export const sendWithdrawalRequestEmail = async (
   userID: unknown,
@@ -209,3 +250,82 @@ export const sendDepletionWarningEmail = async (
     console.error("Error sending depletion warning email:", error);
   }
 };
+
+
+export const sendFraudAlertEmail = async (
+  flaggedUserEmail: string,
+  flaggedUsername: string,
+  reason: string,
+  details?: string
+) => {
+  try {
+    const admins = await User.find({ role: { $in: ["admin", "superAdmin"] } });
+
+    if (admins.length === 0) {
+      console.warn("No admins found to notify about fraud alert");
+      return;
+    }
+
+    const toEmails = admins.map((admin) => admin.email).filter(Boolean);
+
+    if (toEmails.length === 0) {
+      console.warn("Admins found but no valid emails to notify fraud alert");
+      return;
+    }
+
+    const mailOptions = {
+      from: `"Novunt Security" <${process.env.MAIL_USER}>`,
+      to: toEmails.join(","),
+      subject: "🚨 Fraud Detection Alert",
+      html: `
+        <h2>Fraud Detection Alert</h2>
+        <p><strong>User:</strong> ${flaggedUsername} (${flaggedUserEmail})</p>
+        <p><strong>Reason:</strong> ${reason}</p>
+        ${
+          details
+            ? `<p><strong>Details:</strong> ${details}</p>`
+            : ""
+        }
+        <p>Please review this user account for suspicious activity.</p>
+        <br/>
+        <p>– Novunt Security Team</p>
+      `,
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log(`[EMAIL] Fraud alert sent to admins: ${toEmails.join(", ")}`);
+  } catch (error) {
+    console.error("[EMAIL ERROR] Failed to send fraud alert email:", error);
+  }
+};
+
+
+export const sendUserFraudNotificationEmail = async (
+  to: string,
+  username: string,
+  reason: string
+) => {
+  const mailOptions = {
+    from: `"Novunt Security" <${process.env.MAIL_USER}>`,
+    to,
+    subject: "⚠️ Important: Suspicious Activity Detected on Your Account",
+    html: `
+      <p>Hi ${username},</p>
+      <p>We detected suspicious activity on your account:</p>
+      <p><strong>${reason}</strong></p>
+      <p>Our security team is reviewing this and may contact you if necessary.</p>
+      <p>If this was not you, please secure your account immediately by changing your password and enabling 2FA.</p>
+      <br/>
+      <p>Thanks,</p>
+      <p>Novunt Security Team</p>
+    `,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`[EMAIL] Fraud notification sent to user ${to}`);
+  } catch (error) {
+    console.error(`[EMAIL ERROR] Failed to send fraud notification email to ${to}:`, error);
+  }
+};
+

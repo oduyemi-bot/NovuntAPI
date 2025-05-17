@@ -240,16 +240,15 @@ const generate2FASecret = (req, res) => __awaiter(void 0, void 0, void 0, functi
         return;
     }
     const secret = speakeasy_1.default.generateSecret({
-        name: `YourAppName (${email})`, // shows in Google Authenticator
+        name: `Novunt App (${email})`, // shows in Google Authenticator
     });
     try {
         const otpauthUrl = secret.otpauth_url;
         const qrImageUrl = yield qrcode_1.default.toDataURL(otpauthUrl);
-        // You should store the base32 secret temporarily until the user verifies with a token
         res.status(200).json({
             message: "Scan QR with Google Authenticator",
             qrImageUrl,
-            secret: secret.base32, // Only send this if you're verifying manually
+            secret: secret.base32,
         });
     }
     catch (err) {
@@ -290,7 +289,7 @@ const login = (req, res, next) => __awaiter(void 0, void 0, void 0, function* ()
             yield (0, logSecurityEvent_1.logSecurityEvent)({
                 user: user._id,
                 action: "2fa-challenge",
-                status: "success", // This just means the challenge was issued
+                status: "success",
                 ipAddress: req.ip,
                 userAgent: req.headers["user-agent"],
                 details: "2FA challenge sent during login",

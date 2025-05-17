@@ -4,7 +4,7 @@ import mongoose, { Document, Schema, Model } from "mongoose";
 export interface IUserWallet extends Document {
     _id: mongoose.Types.ObjectId;
     user: mongoose.Types.ObjectId;
-    walletAddress?: string;
+    walletAddress?: string; // Format to be validated later based on USDT chain (ERC20, TRC20, etc.)
     balance: number;
     totalDeposited: number;
     totalWithdrawn: number;

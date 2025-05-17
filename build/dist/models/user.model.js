@@ -85,6 +85,9 @@ const userSchema = new mongoose_1.Schema({
         minlength: [8, "Password must be at least 8 characters long"],
         select: false,
     },
+    profilePicture: {
+        type: String
+    },
     twoFAEnabled: {
         type: Boolean,
         default: false

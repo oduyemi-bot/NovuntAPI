@@ -16,6 +16,7 @@ export interface IUser extends Document {
   username: string;
   email: string;
   password: string;
+  profilePicture?: string;
   twoFAEnabled: boolean;
   twoFASecret: string;
   role: "admin" | "superAdmin" | "user";
@@ -28,6 +29,9 @@ export interface IUser extends Document {
   createdAt: Date;
   updatedAt: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
+  resetSecret?: string;
+  resetToken?: string;
+  resetTokenExpiration?: number;
 }
 
 const userSchema = new Schema<IUser>(
@@ -67,6 +71,10 @@ const userSchema = new Schema<IUser>(
       required: [true, "Password is required"],
       minlength: [8, "Password must be at least 8 characters long"],
       select: false,
+    },
+
+    profilePicture: {
+      type: String
     },
 
     twoFAEnabled: { 
@@ -113,6 +121,9 @@ const userSchema = new Schema<IUser>(
         type: Boolean, 
         default: true 
     },
+    resetSecret: { type: String, select: false },
+    resetToken: { type: String, select: false },
+    resetTokenExpiration: { type: Number, select: false },
   },
   { timestamps: true }
 );

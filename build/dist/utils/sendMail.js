@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.sendDepletionWarningEmail = exports.sendWithdrawalStatusEmail = exports.sendWithdrawalApprovedEmail = exports.sendWithdrawalRequestEmail = exports.sendVerificationTOTP = void 0;
+exports.sendUserFraudNotificationEmail = exports.sendFraudAlertEmail = exports.sendDepletionWarningEmail = exports.sendWithdrawalStatusEmail = exports.sendWithdrawalApprovedEmail = exports.sendWithdrawalRequestEmail = exports.sendVerificationTOTP = void 0;
 exports.sendAdminWelcomeEmail = sendAdminWelcomeEmail;
 const speakeasy_1 = __importDefault(require("speakeasy"));
 const transporter_1 = require("./transporter");
@@ -183,3 +183,64 @@ const sendDepletionWarningEmail = (userID, bonusAmount) => __awaiter(void 0, voi
     }
 });
 exports.sendDepletionWarningEmail = sendDepletionWarningEmail;
+const sendFraudAlertEmail = (flaggedUserEmail, flaggedUsername, reason, details) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const admins = yield user_model_1.default.find({ role: { $in: ["admin", "superAdmin"] } });
+        if (admins.length === 0) {
+            console.warn("No admins found to notify about fraud alert");
+            return;
+        }
+        const toEmails = admins.map((admin) => admin.email).filter(Boolean);
+        if (toEmails.length === 0) {
+            console.warn("Admins found but no valid emails to notify fraud alert");
+            return;
+        }
+        const mailOptions = {
+            from: `"Novunt Security" <${process.env.MAIL_USER}>`,
+            to: toEmails.join(","),
+            subject: "🚨 Fraud Detection Alert",
+            html: `
+        <h2>Fraud Detection Alert</h2>
+        <p><strong>User:</strong> ${flaggedUsername} (${flaggedUserEmail})</p>
+        <p><strong>Reason:</strong> ${reason}</p>
+        ${details
+                ? `<p><strong>Details:</strong> ${details}</p>`
+                : ""}
+        <p>Please review this user account for suspicious activity.</p>
+        <br/>
+        <p>– Novunt Security Team</p>
+      `,
+        };
+        yield transporter_1.transporter.sendMail(mailOptions);
+        console.log(`[EMAIL] Fraud alert sent to admins: ${toEmails.join(", ")}`);
+    }
+    catch (error) {
+        console.error("[EMAIL ERROR] Failed to send fraud alert email:", error);
+    }
+});
+exports.sendFraudAlertEmail = sendFraudAlertEmail;
+const sendUserFraudNotificationEmail = (to, username, reason) => __awaiter(void 0, void 0, void 0, function* () {
+    const mailOptions = {
+        from: `"Novunt Security" <${process.env.MAIL_USER}>`,
+        to,
+        subject: "⚠️ Important: Suspicious Activity Detected on Your Account",
+        html: `
+      <p>Hi ${username},</p>
+      <p>We detected suspicious activity on your account:</p>
+      <p><strong>${reason}</strong></p>
+      <p>Our security team is reviewing this and may contact you if necessary.</p>
+      <p>If this was not you, please secure your account immediately by changing your password and enabling 2FA.</p>
+      <br/>
+      <p>Thanks,</p>
+      <p>Novunt Security Team</p>
+    `,
+    };
+    try {
+        yield transporter_1.transporter.sendMail(mailOptions);
+        console.log(`[EMAIL] Fraud notification sent to user ${to}`);
+    }
+    catch (error) {
+        console.error(`[EMAIL ERROR] Failed to send fraud notification email to ${to}:`, error);
+    }
+});
+exports.sendUserFraudNotificationEmail = sendUserFraudNotificationEmail;
