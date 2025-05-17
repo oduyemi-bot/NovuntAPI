@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.sendUserFraudNotificationEmail = exports.sendFraudAlertEmail = exports.sendDepletionWarningEmail = exports.sendWithdrawalStatusEmail = exports.sendWithdrawalApprovedEmail = exports.sendWithdrawalRequestEmail = exports.sendVerificationTOTP = void 0;
+exports.sendUserFraudNotificationEmail = exports.sendFraudAlertEmail = exports.sendDepletionWarningEmail = exports.sendWithdrawalStatusEmail = exports.sendWithdrawalApprovedEmail = exports.sendWithdrawalRequestEmail = exports.sendResetPasswordEmail = exports.sendVerificationTOTP = void 0;
 exports.sendAdminWelcomeEmail = sendAdminWelcomeEmail;
 const speakeasy_1 = __importDefault(require("speakeasy"));
 const transporter_1 = require("./transporter");
@@ -64,6 +64,39 @@ const sendVerificationTOTP = (email, name) => __awaiter(void 0, void 0, void 0, 
     };
 });
 exports.sendVerificationTOTP = sendVerificationTOTP;
+const sendResetPasswordEmail = (email, name) => __awaiter(void 0, void 0, void 0, function* () {
+    // Generate secret and TOTP token (valid for 15 minutes)
+    const secret = speakeasy_1.default.generateSecret();
+    const token = speakeasy_1.default.totp({
+        secret: secret.base32,
+        encoding: "base32",
+        step: 900, // 15 minutes validity
+    });
+    const expirationTime = Date.now() + 900 * 1000; // 15 minutes from now
+    yield user_model_1.default.findOneAndUpdate({ email }, {
+        resetSecret: secret.base32,
+        resetToken: token,
+        resetTokenExpiration: expirationTime,
+    }, { upsert: true, new: true });
+    const mailOptions = {
+        from: `"Novunt" <${process.env.MAIL_USER}>`,
+        to: email,
+        subject: "Your Password Reset Code",
+        html: `
+      <p>Hello <b>${name}</b>,</p>
+      <p>Your password reset code is:</p>
+      <h2>${token}</h2>
+      <p>This code will expire in 15 minutes.</p>
+      <p>If you did not request this, please ignore this email.</p>
+    `,
+    };
+    // Send the email
+    yield transporter_1.transporter.sendMail(mailOptions);
+    return {
+        secret: secret.base32,
+    };
+});
+exports.sendResetPasswordEmail = sendResetPasswordEmail;
 const sendWithdrawalRequestEmail = (userID, amount) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const user = yield user_model_1.default.findById(userID);

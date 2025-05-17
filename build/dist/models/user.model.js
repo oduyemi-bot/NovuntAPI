@@ -124,6 +124,9 @@ const userSchema = new mongoose_1.Schema({
         type: Boolean,
         default: true
     },
+    resetSecret: { type: String, select: false },
+    resetToken: { type: String, select: false },
+    resetTokenExpiration: { type: Number, select: false },
 }, { timestamps: true });
 const User = mongoose_1.default.model("User", userSchema);
 function addSuperAdmins() {

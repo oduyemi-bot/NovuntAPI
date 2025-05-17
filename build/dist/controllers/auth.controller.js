@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.logout = exports.login = exports.generate2FASecret = exports.enable2FA = exports.verify2FA = exports.completeRegistration = exports.resendVerificationCode = exports.initiateRegistration = void 0;
+exports.logout = exports.resetPassword = exports.verifyResetToken = exports.sendResetPasswordOTP = exports.updatePassword = exports.login = exports.generate2FASecret = exports.enable2FA = exports.verify2FA = exports.completeRegistration = exports.resendVerificationCode = exports.initiateRegistration = void 0;
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const speakeasy_1 = __importDefault(require("speakeasy"));
@@ -335,6 +335,118 @@ const login = (req, res, next) => __awaiter(void 0, void 0, void 0, function* ()
     }
 });
 exports.login = login;
+const updatePassword = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    try {
+        const userId = (_a = req.user) === null || _a === void 0 ? void 0 : _a._id;
+        const { oldPassword, newPassword, confirmNewPassword } = req.body;
+        if (!oldPassword || !newPassword || !confirmNewPassword) {
+            res.status(400).json({ message: "All password fields are required" });
+            return;
+        }
+        if (newPassword !== confirmNewPassword) {
+            res.status(400).json({ message: "New password and confirmation do not match" });
+            return;
+        }
+        const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@_$!%*?&])[A-Za-z\d@_$!%*?&]{8,}$/;
+        if (!passwordRegex.test(newPassword)) {
+            res.status(400).json({
+                message: "Password must be at least 8 characters long and include uppercase, lowercase, number, and special character.",
+            });
+            return;
+        }
+        const user = yield user_model_1.default.findById(userId).select("+password");
+        if (!user) {
+            res.status(404).json({ message: "User not found" });
+            return;
+        }
+        const isMatch = yield bcryptjs_1.default.compare(oldPassword, user.password);
+        if (!isMatch) {
+            res.status(401).json({ message: "Old password is incorrect" });
+            return;
+        }
+        user.password = yield bcryptjs_1.default.hash(newPassword, 10);
+        yield user.save();
+        res.status(200).json({ message: "Password updated successfully" });
+    }
+    catch (error) {
+        console.error("Error updating password:", error);
+        res.status(500).json({ message: "Error updating password", error: error.message });
+    }
+});
+exports.updatePassword = updatePassword;
+const sendResetPasswordOTP = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { email } = req.body;
+        if (!email) {
+            return res.status(400).json({ message: "Email is required" });
+        }
+        const user = yield user_model_1.default.findOne({ email: email.toLowerCase() });
+        if (!user) {
+            return res.status(200).json({ message: "If the email exists, an OTP has been sent." });
+        }
+        const secret = process.env.JWT_SECRET || "your_jwt_secret";
+        const token = jsonwebtoken_1.default.sign({ userId: user._id }, secret, { expiresIn: "15m" });
+        yield (0, sendMail_1.sendResetPasswordEmail)(user.email, user.fname + " " + user.lname);
+        return res.status(200).json({ message: "If the email exists, an OTP has been sent." });
+    }
+    catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Error sending reset password OTP", error: error.message });
+    }
+});
+exports.sendResetPasswordOTP = sendResetPasswordOTP;
+const verifyResetToken = (email, token) => __awaiter(void 0, void 0, void 0, function* () {
+    const user = yield user_model_1.default.findOne({ email }).select("+resetToken +resetTokenExpiration");
+    if (!user) {
+        throw new Error("User not found");
+    }
+    if (user.resetToken !== token ||
+        !user.resetTokenExpiration ||
+        user.resetTokenExpiration < Date.now()) {
+        throw new Error("Invalid or expired reset token");
+    }
+    return true;
+});
+exports.verifyResetToken = verifyResetToken;
+const resetPassword = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { newPassword, confirmNewPassword, token } = req.body;
+        if (!newPassword || !confirmNewPassword || !token) {
+            return res.status(400).json({ message: "All fields are required" });
+        }
+        if (newPassword !== confirmNewPassword) {
+            return res.status(400).json({ message: "Passwords do not match" });
+        }
+        const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@_$!%*?&])[A-Za-z\d@_$!%*?&]{8,}$/;
+        if (!passwordRegex.test(newPassword)) {
+            return res.status(400).json({
+                message: "Password must be at least 8 characters long and include uppercase, lowercase, number, and special character.",
+            });
+        }
+        const secret = process.env.JWT_SECRET || "your_jwt_secret";
+        let payload;
+        try {
+            payload = jsonwebtoken_1.default.verify(token, secret);
+        }
+        catch (_a) {
+            return res.status(400).json({ message: "Invalid or expired token" });
+        }
+        const user = yield user_model_1.default.findById(payload.userId).select("+password");
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+        user.password = yield bcryptjs_1.default.hash(newPassword, 10);
+        yield user.save();
+        // Optional: send confirmation email or audit log here
+        return res.status(200).json({ message: "Password reset successfully" });
+    }
+    catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Error resetting password", error: error.message });
+    }
+});
+exports.resetPassword = resetPassword;
 const logout = (req, res) => {
     const userID = req.params.userID;
     try {

@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.demoteToUser = exports.promoteToAdmin = exports.deleteUser = exports.updateUser = exports.getUserById = exports.getAdminById = exports.getAllSuperAdmin = exports.getAllAdmin = exports.getAllUsers = void 0;
+exports.demoteToUser = exports.promoteToAdmin = exports.deleteUser = exports.updateProfilePicture = exports.updateUser = exports.getUserById = exports.getAdminById = exports.getAllSuperAdmin = exports.getAllAdmin = exports.getAllUsers = void 0;
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const mongoose_1 = __importDefault(require("mongoose"));
 const user_model_1 = __importDefault(require("../models/user.model"));
@@ -121,6 +121,31 @@ const updateUser = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
     }
 });
 exports.updateUser = updateUser;
+// Update user password 
+const updateProfilePicture = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    try {
+        const userId = (_a = req.user) === null || _a === void 0 ? void 0 : _a._id;
+        const { profilePicture } = req.body;
+        if (!profilePicture || typeof profilePicture !== "string") {
+            res.status(400).json({ message: "profilePicture URL is required and must be a string" });
+            return;
+        }
+        const user = yield user_model_1.default.findById(userId);
+        if (!user || !user.isActive) {
+            res.status(404).json({ message: "User not found or inactive" });
+            return;
+        }
+        user.profilePicture = profilePicture;
+        yield user.save();
+        res.status(200).json({ message: "Profile picture updated successfully", profilePicture: user.profilePicture });
+    }
+    catch (error) {
+        console.error("Error updating profile picture:", error);
+        res.status(500).json({ message: "Error updating profile picture", error: error.message });
+    }
+});
+exports.updateProfilePicture = updateProfilePicture;
 // Deactivate user
 const deleteUser = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
