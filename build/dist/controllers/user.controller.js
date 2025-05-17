@@ -121,7 +121,6 @@ const updateUser = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
     }
 });
 exports.updateUser = updateUser;
-// Update user password 
 const updateProfilePicture = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
     try {
