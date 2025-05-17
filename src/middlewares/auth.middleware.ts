@@ -66,3 +66,4 @@ export const require2FA = (req: AuthenticatedRequest, res: Response, next: NextF
   }
   next();
 };
+

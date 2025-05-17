@@ -3,8 +3,55 @@ import UserWallet from "../models/userWallet.model";
 import Transaction from "../models/transaction.model";
 import { mockNowPaymentsWithdraw } from "../utils/mockNowPayments";
 import { sendWithdrawalStatusEmail } from "../utils/sendMail";
+import User from "../models/user.model";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import dotenv from "dotenv";
+import { logAudit } from "../utils/logger";
+
 
 const WITHDRAWAL_FEE_PERCENTAGE = 3; // 3%
+
+
+dotenv.config();
+
+export const adminLogin = async (req: Request, res: Response) => {
+  try {
+    const { identifier, password } = req.body; // identifier = email or username
+    if (!identifier || !password) {
+      return res.status(400).json({ message: "Email/username and password are required." });
+    }
+
+    const user = await User.findOne({
+      $or: [{ email: identifier.toLowerCase() }, { username: identifier.toLowerCase() }],
+    }).select("+password");
+
+    if (!user || (user.role !== "admin" && user.role !== "superAdmin")) {
+      return res.status(401).json({ message: "Access denied." });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ message: "Invalid credentials." });
+    }
+
+    const token = jwt.sign({ userID: user._id }, process.env.JWT_SECRET!, {
+      expiresIn: "12h",
+    });
+
+    logAudit(`Admin Login: ${user.email} (${user.role})`);
+    return res.status(200).json({
+      message: "Login successful.",
+      token,
+      role: user.role,
+      twoFAEnabled: user.twoFAEnabled,
+    });
+  } catch (error) {
+    console.error("Admin login error:", error);
+    res.status(500).json({ message: "Internal server error." });
+  }
+};
+
 
 export const approveWithdrawal = async (req: Request, res: Response) => {
     const { transactionId } = req.params;
