@@ -51,7 +51,7 @@ setInterval(() => __awaiter(void 0, void 0, void 0, function* () {
     amount: 50,
 });
 const corsOptions = {
-    origin: ["http://localhost:3000"],
+    origin: ["http://localhost:3000", "https://drabux-mu.vercel.app"],
     credentials: true,
 };
 app.use(express_1.default.json());
