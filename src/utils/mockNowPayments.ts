@@ -80,3 +80,35 @@ export const mockNowPaymentsWithdraw = async ({
     timestamp,
   };
 };
+
+
+
+
+interface MockCreateDepositParams {
+  userId: string;
+  currency: "usdt" | string;
+}
+
+interface MockDepositResponse {
+  address: string;
+  id: string;
+  createdAt: string;
+  currency: string;
+}
+
+export const mockNowPaymentsCreateDeposit = ({
+  userId,
+  currency = "usdt",
+}: MockCreateDepositParams): MockDepositResponse => {
+  const fakeWalletAddress = `T${uuidv4().replace(/-/g, "").slice(0, 33)}`;
+  const depositId = uuidv4();
+  const createdAt = new Date().toISOString();
+
+  return {
+    address: fakeWalletAddress,
+    id: depositId,
+    createdAt,
+    currency,
+  };
+};
+

@@ -38,8 +38,9 @@ const TransactionSchema = new mongoose_1.Schema({
     user: { type: mongoose_1.Schema.Types.ObjectId, ref: "User", required: true },
     type: { type: String, enum: ["deposit", "withdrawal", "transfer", "bonus"], required: true },
     amount: { type: Number, required: true },
+    reference: { type: String, unique: true, required: true },
     status: { type: String, enum: ["pending", "confirmed", "failed"], required: true },
-    txId: { type: String, required: true, unique: true },
+    txId: { type: String, unique: true, sparse: true }, // <-- Changed here
     fromUser: { type: mongoose_1.Schema.Types.ObjectId, ref: "User" },
     toUser: { type: mongoose_1.Schema.Types.ObjectId, ref: "User" },
     method: { type: String, enum: ["nowpayments", "internal", "bonus", "manual"] },
@@ -51,5 +52,9 @@ const TransactionSchema = new mongoose_1.Schema({
     requiresAdminApproval: { type: Boolean, default: false },
     processedAt: { type: Date },
 });
+TransactionSchema.index({ reference: 1 });
+TransactionSchema.index({ user: 1 });
+TransactionSchema.index({ status: 1 });
+TransactionSchema.index({ timestamp: -1 });
 const Transaction = mongoose_1.default.model("Transaction", TransactionSchema);
 exports.default = Transaction;

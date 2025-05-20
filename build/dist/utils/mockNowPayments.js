@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.mockNowPaymentsWithdraw = exports.checkMockNowPaymentsDeposits = exports.mockGenerateWalletAddress = void 0;
+exports.mockNowPaymentsCreateDeposit = exports.mockNowPaymentsWithdraw = exports.checkMockNowPaymentsDeposits = exports.mockGenerateWalletAddress = void 0;
 exports.simulateDepositConfirmation = simulateDepositConfirmation;
 const mockBlockchainEmitter_1 = __importDefault(require("./mockBlockchainEmitter"));
 const uuid_1 = require("uuid");
@@ -62,3 +62,15 @@ const mockNowPaymentsWithdraw = (_a) => __awaiter(void 0, [_a], void 0, function
     };
 });
 exports.mockNowPaymentsWithdraw = mockNowPaymentsWithdraw;
+const mockNowPaymentsCreateDeposit = ({ userId, currency = "usdt", }) => {
+    const fakeWalletAddress = `T${(0, uuid_1.v4)().replace(/-/g, "").slice(0, 33)}`;
+    const depositId = (0, uuid_1.v4)();
+    const createdAt = new Date().toISOString();
+    return {
+        address: fakeWalletAddress,
+        id: depositId,
+        createdAt,
+        currency,
+    };
+};
+exports.mockNowPaymentsCreateDeposit = mockNowPaymentsCreateDeposit;

@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.sendUserFraudNotificationEmail = exports.sendFraudAlertEmail = exports.sendDepletionWarningEmail = exports.sendWithdrawalStatusEmail = exports.sendWithdrawalApprovedEmail = exports.sendWithdrawalRequestEmail = exports.sendResetPasswordEmail = exports.sendVerificationTOTP = void 0;
+exports.sendDepositSuccessEmail = exports.sendUserFraudNotificationEmail = exports.sendFraudAlertEmail = exports.sendDepletionWarningEmail = exports.sendWithdrawalStatusEmail = exports.sendWithdrawalApprovedEmail = exports.sendWithdrawalRequestEmail = exports.sendResetPasswordEmail = exports.sendVerificationTOTP = void 0;
 exports.sendAdminWelcomeEmail = sendAdminWelcomeEmail;
 exports.sendSuperAdminWelcomeEmail = sendSuperAdminWelcomeEmail;
 const speakeasy_1 = __importDefault(require("speakeasy"));
@@ -295,3 +295,28 @@ const sendUserFraudNotificationEmail = (to, username, reason) => __awaiter(void 
     }
 });
 exports.sendUserFraudNotificationEmail = sendUserFraudNotificationEmail;
+const sendDepositSuccessEmail = (_a) => __awaiter(void 0, [_a], void 0, function* ({ to, name, amount, txId, method = "USDT", }) {
+    const mailOptions = {
+        from: `"Novunt Finance" <${process.env.MAIL_USER}>`,
+        to,
+        subject: "✅ Your Deposit Was Successful",
+        html: `
+      <p>Hi ${name},</p>
+      <p>We've received your deposit of <strong>${amount} ${method}</strong>.</p>
+      <p><strong>Transaction ID:</strong> ${txId}</p>
+      <p>Your wallet has been updated and the funds are now available.</p>
+      <p>If you did not authorize this transaction, please contact our support team immediately.</p>
+      <br/>
+      <p>Thanks,</p>
+      <p>Novunt Finance Team</p>
+    `,
+    };
+    try {
+        yield transporter_1.transporter.sendMail(mailOptions);
+        console.log(`[EMAIL] Deposit success email sent to ${to}`);
+    }
+    catch (error) {
+        console.error("[EMAIL ERROR] Failed to send deposit success email:", error);
+    }
+});
+exports.sendDepositSuccessEmail = sendDepositSuccessEmail;

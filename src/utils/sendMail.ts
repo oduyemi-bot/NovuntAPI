@@ -11,6 +11,15 @@ interface WithdrawalNotificationParams {
   txId: string;
 }
 
+interface DepositSuccessParams {
+  to: string;
+  name: string;
+  amount: number;
+  txId: string;
+  method?: string;
+}
+
+
 
 export async function sendAdminWelcomeEmail(email: string, name: string) {
   const mailOptions = {
@@ -347,3 +356,33 @@ export const sendUserFraudNotificationEmail = async (
   }
 };
 
+export const sendDepositSuccessEmail = async ({
+  to,
+  name,
+  amount,
+  txId,
+  method = "USDT",
+}: DepositSuccessParams) => {
+  const mailOptions = {
+    from: `"Novunt Finance" <${process.env.MAIL_USER}>`,
+    to,
+    subject: "✅ Your Deposit Was Successful",
+    html: `
+      <p>Hi ${name},</p>
+      <p>We've received your deposit of <strong>${amount} ${method}</strong>.</p>
+      <p><strong>Transaction ID:</strong> ${txId}</p>
+      <p>Your wallet has been updated and the funds are now available.</p>
+      <p>If you did not authorize this transaction, please contact our support team immediately.</p>
+      <br/>
+      <p>Thanks,</p>
+      <p>Novunt Finance Team</p>
+    `,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`[EMAIL] Deposit success email sent to ${to}`);
+  } catch (error) {
+    console.error("[EMAIL ERROR] Failed to send deposit success email:", error);
+  }
+};
